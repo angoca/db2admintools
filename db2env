@@ -21,13 +21,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Changes the environment to the given DB2 instance.
+# Changes the configuration of the environment to the given DB2 instance.
 #
-# You need to 'source' this command in order to change the environment.
+# There are two modes to execute this script
+#  * With a menu (. ./db2env)
+#  * With a given instance (. ./db2env db2inst1)
+# You need to 'source' this command in order to change the environment. For this
+# it is necessary to write a dot followed by a space, then the command.
 #   . ./db2env
 # To ease the process, you can create a function per instance in the .profile.
 #
-# function i01 { . /db2admintools/db2env db2inst1 ; }
+# function i1 { . ./db2admintools/db2env db2inst1 ; }
+# function i2 { . ./db2admintools/db2env db2inst2 ; }
 #
 # To configure it, you just need to change the DB2 path.
 #   export DB2_DIR=/opt/ibm/db2/v10.5
@@ -41,7 +46,7 @@
 # 20130601 A. Gomez (AngocA) - Creation script.
 # 20130617 A. Gomez (AngocA) - Modification after refactoring to get close to
 #   oraenv.
-# 20140520 A. Gomez (AngocA) - Taken env variable. Checks errors.
+# 20140520 A. Gomez (AngocA) - Env variable to configure. Checks errors.
 
 # DB2 path
 DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V9.7}
@@ -59,7 +64,7 @@ changeInstance () {
   if [[ -f ${PROFILE_DIR} ]] ; then
     . ${PROFILE_DIR}
 
-    # Checks if DB2 is accesible.
+    # Checks if DB2 is accessible.
     DB2_EXIST=$(which db2)
     if [[ -x "${DB2_EXIST}" ]] ; then
       # Disconnect any existing connection.
