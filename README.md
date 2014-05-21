@@ -3,6 +3,9 @@ db2admintools
 
 This project provides a set of scripts to ease the database administration.
 
+These files do not need installation, you can execute them directly. Some enviroment
+variable could be defined in order to modify the default behaviour.
+
 # FILES 
 
  * db2env
