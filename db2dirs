@@ -19,14 +19,19 @@ readInstDirectory () {
     if [[ -x "${DB2_EXIST}" ]] ; then
 
       db2 terminate > /dev/null 2>&1
-# TODO show the number of nodes in the directory
-      echo " Nodes:"
-      db2 list node directory | tail -n +6 | awk '/^Node / {if (NR!=1) print ""; next} {printf $0} END {print "";}' | awk '{print $4,$17,$21}'
-# TODO show the number of dbs in the directory
-      echo "  Local databases"
-      db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {print $4,$8,$13}'
+      echo "Instance: ${INSTANCE}"
+      # Shows the nodes.
+      echo " Nodes: $(. ${PROFILE_DIR} ; db2 list node directory | awk '/entries/ {print $8}')"
+      echo "  Name     IP/Name         Port"
+      db2 list node directory | tail -n +6 | awk '/^Node / {if (NR!=1) print ""; next} {printf $0} END {print "";}' | sort | awk '{printf "  %-8s %-15s %s\n",$4,$17,$21}'
+      # Shows the databases.
+      echo " Databases: $(. ${PROFILE_DIR} ; db2 list db directory | awk '/entries/ {print $8}')"
+      echo "   Node     Alias    (Name    )"
       echo "  Remote databases"
-      db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Remote/ {print $4,$8,$12}'
+      db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | sort -k 12 | awk '/Remote/   {printf "   %-8s %-8s (%-8s)\n",$12,$4,$8}'
+      echo "  Local databases"
+      db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {printf "   LOCAL    %-8s (%-8s) %s\n",$4,$8,$13}'
+      echo
     else
       echo "DB2 has not been found at instance ${INSTANCE}"
     fi
