@@ -25,13 +25,12 @@
 #
 # Exit codes:
 # 0 : Ok.
-# 1 : Instance does not exist.
-# 2 : DB2 binaries not found.
+# 1 : DB2 binaries not found.
 #
 # 20140520 A. Gomez (AngocA) - Script creation.
 
 # DB2 path
-DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V9.7}
+DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
 
 #set -x
 
@@ -69,7 +68,7 @@ readInstDirectory () {
         echo "  Remote databases"
         db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | sort -k 12 | awk '/Remote/   {printf "   %-8s %-8s (%-8s)\n",$12,$4,$8}'
         echo "  Local databases"
-      db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {printf "   LOCAL    %-8s (%-8s) %s\n",$4,$8,$13}'
+        db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {printf "   LOCAL    %-8s (%-8s) %s\n",$4,$8,$13}'
         echo
       fi
     else
@@ -92,5 +91,4 @@ echo "Reading db2greg: ${DB2GREG}"
 while read LINE ; do
   readInstDirectory $LINE
 done < <(${DB2GREG} -dump | awk -F, '/^I,DB2/ {print $4}')
-
 
