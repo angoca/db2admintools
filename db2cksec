@@ -93,7 +93,7 @@ while IFS= read INST ; do
     if [[ ${DB_NAME} != "" ]] ; then
       echo " Database ${DB}"
       db2 connect to ${DB} > /dev/null
-      db2 "select '  ' || varchar(substr(grantee, 1, 10) ,10) grantee, varchar(substr(grantor, 1,  10), 10) as \"<--GRANTOR", granteetype type, dbadmauth dbadm, securityadmauth secadm, wlmadmauth wladm, DATAACCESSAUTH data, ACCESSCTRLAUTH ACCESS, BINDADDAUTH bind, CONNECTAUTH conn, CREATETABAUTH crttab, EXTERNALROUTINEAUTH extrout, IMPLSCHEMAAUTH implschem, LOADAUTH load, NOFENCEAUTH nofenc, QUIESCECONNECTAUTH quiesce, LIBRARYADMAUTH lib, SQLADMAUTH sql, EXPLAINAUTH expl from syscat.dbauth order by type desc, grantee" | grep -e "^$" -v | grep -v "record(s) selected."
+      db2 "select '  ' || varchar(substr(grantee, 1, 10) ,10) grantee, varchar(substr(grantor, 1,  10), 10) as \"<--GRANTOR\", granteetype type, dbadmauth dbadm, securityadmauth secadm, wlmadmauth wladm, DATAACCESSAUTH data, ACCESSCTRLAUTH ACCESS, BINDADDAUTH bind, CONNECTAUTH conn, CREATETABAUTH crttab, EXTERNALROUTINEAUTH extrout, IMPLSCHEMAAUTH implschem, LOADAUTH load, NOFENCEAUTH nofenc, QUIESCECONNECTAUTH quiesce, LIBRARYADMAUTH lib, SQLADMAUTH sql, EXPLAINAUTH expl from syscat.dbauth order by type desc, grantee" | grep -e "^$" -v | grep -v "record(s) selected."
       while IFS= read GROUP ; do
         group ${GROUP}
       done < <( db2 connect to ${DB} > /dev/null ; db2 -x "select substr(grantee,1,10) grantee from syscat.dbauth where granteetype = 'G' group by grantee" )
