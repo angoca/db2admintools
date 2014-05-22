@@ -74,7 +74,7 @@ while IFS= read INST ; do
   echo "Instance ${INST}"
   eval . ~${INST}/sqllib/db2profile
 
-db2   DBS=$(db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {print $4}')
+  DBS=$(db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {print $4}')
 
   while IFS= read DB ; do
     DB_NAME=$(db2 connect to ${DB} | awk '/alias/ {print $5}')
