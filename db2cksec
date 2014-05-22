@@ -28,6 +28,10 @@
 #
 # This script is generic to any environment.
 #
+# Exit codes:
+# 0 : Ok.
+# 1 : DB2 binaries not found.
+#
 # 2013-05-31 A. Gomez (AngocA) - Script creation.
 # 2013-06-17 A. Gomez (AngocA) - Dynamic group analyses.
 # 2013-07-09 A. Gomez (AngocA) - Problem fixed: empty authority group.
@@ -47,7 +51,15 @@ group () {
   echo "   Members: ${MEMBERS_PRI}, ${MEMBERS_SEC}"
 }
 
-INSTANCES=$(${DB2_DIR}/bin/db2greg -dump | awk -F, '/^I,DB2/ {print $4}')
+# Checks if db2greg exist.
+if [[ -f ${DB2_DIR}/bin/db2greg ]] ; then
+  DB2GREG=${DB2_DIR}/bin/db2greg
+else
+  echo "DB2 binaries (DB2GREG) location unknown."
+  exit 1
+fi
+
+INSTANCES=$(${DB2GREG} -dump | awk -F, '/^I,DB2/ {print $4}')
 
 # Show security at instance level.
 echo "Security at instance level:"
@@ -81,10 +93,10 @@ while IFS= read INST ; do
     if [[ ${DB_NAME} != "" ]] ; then
       echo " Database ${DB}"
       db2 connect to ${DB} > /dev/null
-      db2 "select '  ' || substr(grantor,1,10) grantor, substr(grantee,1,10) grantee, granteetype type, dbadmauth dbadm, securityadmauth secadm, wlmadmauth wladm, DATAACCESSAUTH data, ACCESSCTRLAUTH ACCESS, BINDADDAUTH bind, CONNECTAUTH conn, CREATETABAUTH crttab, EXTERNALROUTINEAUTH extrout, IMPLSCHEMAAUTH implschem, LOADAUTH load, NOFENCEAUTH nofenc, QUIESCECONNECTAUTH quiesce, LIBRARYADMAUTH lib, SQLADMAUTH sql, EXPLAINAUTH expl from syscat.dbauth" | grep -e "^$" -v | grep -v "record(s) selected."
+      db2 "select '  ' || varchar(substr(grantee, 1, 10) ,10) grantee, varchar(substr(grantor, 1,  10), 10) as \"<--GRANTOR", granteetype type, dbadmauth dbadm, securityadmauth secadm, wlmadmauth wladm, DATAACCESSAUTH data, ACCESSCTRLAUTH ACCESS, BINDADDAUTH bind, CONNECTAUTH conn, CREATETABAUTH crttab, EXTERNALROUTINEAUTH extrout, IMPLSCHEMAAUTH implschem, LOADAUTH load, NOFENCEAUTH nofenc, QUIESCECONNECTAUTH quiesce, LIBRARYADMAUTH lib, SQLADMAUTH sql, EXPLAINAUTH expl from syscat.dbauth order by type desc, grantee" | grep -e "^$" -v | grep -v "record(s) selected."
       while IFS= read GROUP ; do
         group ${GROUP}
-      done < <( db2 connect to ${DB} > /dev/null ; db2 -x "select substr(grantee,1,10) grantee from syscat.dbauth where granteetype = 'G'" )
+      done < <( db2 connect to ${DB} > /dev/null ; db2 -x "select substr(grantee,1,10) grantee from syscat.dbauth where granteetype = 'G' group by grantee" )
       db2 terminate > /dev/null
     else
       echo "Connection error for ${DB}"
