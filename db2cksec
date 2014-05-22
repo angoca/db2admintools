@@ -1,0 +1,97 @@
+#!/bin/bash
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Andres Gomez Casanova
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# Shows the security of the Operative System related to the users and groups in
+# DB2. This script takes only in account the /etc/passwd and /etc/group files.
+# If LDAP is configured, the script does not show the information in those
+# groups.
+#
+# This script is generic to any environment.
+#
+# 2013-05-31 A. Gomez (AngocA) - Script creation.
+# 2013-06-17 A. Gomez (AngocA) - Dynamic group analyses.
+# 2013-07-09 A. Gomez (AngocA) - Problem fixed: empty authority group.
+# 2013-09-06 A. Gomez (AngocA) - Correction in group id retrieval.
+
+# DB2 path
+DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V9.7}
+
+# Shows the members of a OS group.
+group () {
+  GROUP=$(echo $1 | tr '[A-Z]' '[a-z]')
+  LINE=$(awk -F: "/^${GROUP}:/ {print \$3\":\"\$4}" /etc/group)
+  MEMBERS_SEC=$(echo ${LINE} | cut -d':' -f2)
+  ID=$(echo ${LINE} | cut -d':' -f1)
+  MEMBERS_PRI=$(awk -F: "{print \$1\":\"\$4\":\"}" /etc/passwd | awk -F: "/:${ID}:/ {print \$1}" | sed -e :a -e '$!N; s/\n/, /; ta')
+  echo "  Group: ${GROUP} (ID ${ID})"
+  echo "   Members: ${MEMBERS_PRI}, ${MEMBERS_SEC}"
+}
+
+INSTANCES=$(${DB2_DIR}/bin/db2greg -dump | awk -F, '/^I,DB2/ {print $4}')
+
+# Show security at instance level.
+echo "Security at instance level:"
+while IFS= read INST ; do
+  echo "Instance ${INST}"
+  eval . ~${INST}/sqllib/db2profile
+
+  while IFS= read LINE ; do
+    AUTH=$(echo ${LINE} | cut -d' ' -f1 | sed 's/[(|)]//g')
+    GROUP=$(echo ${LINE} | awk '{print $2}' )
+    echo " Authority: ${AUTH}"
+    if [[ -n ${GROUP} ]] ; then
+      group ${GROUP}
+    else
+      echo "  No associated group"
+    fi
+  done < <( db2 get dbm cfg | awk '/_GROUP/ {print $4,$6}' )
+done < <( printf '%s\n' "$INSTANCES" )
+echo
+
+# Show security at database level.
+echo "Security at database level:"
+while IFS= read INST ; do
+  echo "Instance ${INST}"
+  eval . ~${INST}/sqllib/db2profile
+
+db2   DBS=$(db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {print $4}')
+
+  while IFS= read DB ; do
+    DB_NAME=$(db2 connect to ${DB} | awk '/alias/ {print $5}')
+    if [[ ${DB_NAME} != "" ]] ; then
+      echo " Database ${DB}"
+      db2 connect to ${DB} > /dev/null
+      db2 "select '  ' || substr(grantor,1,10) grantor, substr(grantee,1,10) grantee, granteetype type, dbadmauth dbadm, securityadmauth secadm, wlmadmauth wladm, DATAACCESSAUTH data, ACCESSCTRLAUTH ACCESS, BINDADDAUTH bind, CONNECTAUTH conn, CREATETABAUTH crttab, EXTERNALROUTINEAUTH extrout, IMPLSCHEMAAUTH implschem, LOADAUTH load, NOFENCEAUTH nofenc, QUIESCECONNECTAUTH quiesce, LIBRARYADMAUTH lib, SQLADMAUTH sql, EXPLAINAUTH expl from syscat.dbauth" | grep -e "^$" -v | grep -v "record(s) selected."
+      while IFS= read GROUP ; do
+        group ${GROUP}
+      done < <( db2 connect to ${DB} > /dev/null ; db2 -x "select substr(grantee,1,10) grantee from syscat.dbauth where granteetype = 'G'" )
+      db2 terminate > /dev/null
+    else
+      echo "Connection error for ${DB}"
+      db2 connect to ${DB}
+    fi
+  done < <( printf '%s\n' "$DBS" )
+  db2 terminate > /dev/null
+
+done < <( printf '%s\n' "$INSTANCES" )
+
