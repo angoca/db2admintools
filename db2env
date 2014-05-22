@@ -49,7 +49,7 @@
 # 20140520 A. Gomez (AngocA) - Env variable to configure. Checks errors.
 
 # DB2 path
-DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V9.7}
+DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
 
 #set -x
 
