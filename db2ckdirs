@@ -1,0 +1,116 @@
+#!/bin/bash
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Andres Gomez Casanova
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# Checks the attachment and connection to each database in the directories.
+#
+# This script is generic to any environment.
+#
+# Exit codes:
+# 0 : Ok.
+# 1 : DB2 binaries not found.
+#
+# 2014-85-22 Creation script.
+
+# DB2 path
+DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
+
+# Flag for debugging.
+#set -xv
+
+# Locale to print messages in English. Prevent language problems.
+export LANG=en_US
+
+# Shows the members of a OS group.
+group () {
+  GROUP=$(echo $1 | tr '[A-Z]' '[a-z]')
+  LINE=$(awk -F: "/^${GROUP}:/ {print \$3\":\"\$4}" /etc/group)
+  MEMBERS_SEC=$(echo ${LINE} | cut -d':' -f2)
+  ID=$(echo ${LINE} | cut -d':' -f1)
+  MEMBERS_PRI=$(awk -F: "{print \$1\":\"\$4\":\"}" /etc/passwd | awk -F: "/:${ID}:/ {print \$1}" | sed -e :a -e '$!N; s/\n/, /; ta')
+  echo "  Group: ${GROUP} (ID ${ID})"
+  echo "   Members: ${MEMBERS_PRI}, ${MEMBERS_SEC}"
+}
+
+# Checks if db2greg exist.
+if [[ -f ${DB2_DIR}/bin/db2greg ]] ; then
+  DB2GREG=${DB2_DIR}/bin/db2greg
+else
+  echo "DB2 binaries (DB2GREG) location unknown."
+  exit 1
+fi
+
+INSTANCES=$(${DB2GREG} -dump | awk -F, '/^I,DB2/ {print $4}')
+
+# Attach to all nodes defined in each instance.
+while IFS= read INSTANCE ; do
+  PROFILE_DIR=$(eval echo -e ~${INSTANCE}/sqllib/db2profile)
+
+  # If the profile exist load it.
+  if [[ -f ${PROFILE_DIR} ]] ; then
+    . ${PROFILE_DIR}
+
+    db2 terminate > /dev/null 2>&1
+    echo "Instance: ${INSTANCE}"
+    echo
+    # Attach to nodes.
+    echo " Attach to nodes"
+    while IFS= read NODE ; do
+      echo "  Node: ${NODE}"
+      db2 attach to ${NODE} > /dev/null
+      if [[ ${?} -ne 0 ]] ; then
+        echo " >>Error attaching"
+        db2 attach to ${NODE}
+      fi
+      db2 detach > /dev/null
+    done < <( db2 list node directory | tail -n +6 | awk '/^Node / {if (NR!=1) print ""; next} {printf $0} END {print "";}' | sort | awk '{print $4}' )
+    echo
+
+    # Connect to remote databases.
+#    echo " Connect to databases"
+#    echo "  Remote"
+#    while IFS= read DB ; do
+#      echo "  Database: ${DB}"
+#      db2 connect to ${DB} > /dev/null
+#      if [[ ${?} -ne 0 ]] ; then
+#        echo " >>Error connecting"
+#        db2 connect to ${DB}
+#      fi
+#      db2 connect reset > /dev/null
+#    done < <( db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | sort -k 12 | awk '/Remote/ {print $4}')
+    # Connect to local databases.
+    echo "  Local"
+    while IFS= read DB ; do
+      echo "   Database: ${DB}"
+      db2 connect to ${DB} > /dev/null
+      if [[ ${?} -ne 0 ]] ; then
+        echo " >>Error connecting"
+        db2 connect to ${DB}
+      fi
+      db2 connect reset > /dev/null
+    done < <( db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | sort -k 12 | awk '/Indirect/ {print $4}')
+    echo
+  else
+    echo "DB2 has not been found at instance ${INSTANCE}"
+  fi
+done < <( printf '%s\n' "${INSTANCES}" )
+
