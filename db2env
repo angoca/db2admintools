@@ -51,7 +51,11 @@
 # DB2 path
 DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
 
-#set -x
+# Flag for debugging.
+#set -xv
+
+# Locale to print messages in English. Prevent language problems.
+export LANG=en_US
 
 # Configures the environment to access the given instance (username).
 changeInstance () {
