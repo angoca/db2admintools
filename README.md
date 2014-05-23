@@ -11,6 +11,8 @@ variable could be defined in order to modify the default behaviour.
  * db2env
    * It helps to change the configuration easily when switching instances. It
      was based on OraEnv.
+   * You should run this script by preceding the command with dot space (. ./db2env)
+     in order to modify the current profile.
    * By default it reads db2greg db2greg file from /opt/ibm/db2/v10.5 installation.
    * To overide default behavior, define the DB2_DIR with th installation directory.
    * As advise, define the DB2_DIR variable in the .profile or .bashrc.
@@ -26,5 +28,12 @@ variable could be defined in order to modify the default behaviour.
    * By default it reads db2greg db2greg file from /opt/ibm/db2/v10.5 installation.
    * To overide default behavior, define the DB2_DIR with th installation directory.
    * As advise, define the DB2_DIR variable in the .profile or .bashrc.
-
+ * db2chdirs
+   * Attaches to any remote node, and tries a connection to any local and remote
+     database.
+   * Even if the connection or attachment is not successful because of the
+     password, it allows to detect invalid catalogations.
+   * By default it reads db2greg db2greg file from /opt/ibm/db2/v10.5 installation.
+   * To overide default behavior, define the DB2_DIR with th installation directory.
+   * As advise, define the DB2_DIR variable in the .profile or .bashrc.
 
