@@ -48,20 +48,24 @@ TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-servers
 LEGAL=${SERVER_DIR}/legal.txt
 
 function print_usage () {
+  echo "Executes a command in several servers in a parallel way. It could \
+invoke DB2 instances or databases."
   echo "Usage: $1 { -c \"command\" } [ -i [ -a | -d | -P ] ] [ -C ] [ -E ] \
 [ -R ] [ -s 'Server1 Server2' ] [ -v ]"
   echo " -a | --attach : Perform an attach to the instance"
   echo " -c | --command : Command to execute. Mandatory."
-  echo " -C | --noconnect : Do not connect to the database, only assign DB value"
-  echo " -d | --databases : Execute the command in all databases of the instance"
-  echo " -E | --noeval : Do not perform an eval on the given command"
-  echo " -i | --instances : Execute in all instances"
+  echo " -C | --noconnect : Do not connect to the database, only assign DB \
+value."
+  echo " -d | --databases : Execute the command in all databases of the \
+instance."
+  echo " -E | --noeval : Do not perform an eval on the given command."
+  echo " -i | --instances : Execute in all instances."
   echo " -P | --noprofile : Do not load the instance profile, just assign the"
-  echo "     DB2INSTANCE value"
-  echo " -R | --noremove : Do not remove the files that contain the output"
+  echo "     DB2INSTANCE value."
+  echo " -R | --noremove : Do not remove the files that contain the output."
   echo " -s | --servers : Provides the servers where the command should be"
   echo "     executed. If empty, the command will use ALL servers. Mandatory."
-  echo " -v | --verbose : Write verbose output. Multiple times, more output"
+  echo " -v | --verbose : Write verbose output. Multiple times, more output."
 }
 
 function execServer () {
