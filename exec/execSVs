@@ -48,8 +48,8 @@ TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-servers
 LEGAL=${SERVER_DIR}/legal.txt
 
 function print_usage () {
-  echo "Usage: $1 { -c "command" } [ -i [ -a | -d | -P ] ] [ -C ] [ -E ] [ -R ] \
-[ -s "Server1 Server2" ] [ -v ]"
+  echo "Usage: $1 { -c \"command\" } [ -i [ -a | -d | -P ] ] [ -C ] [ -E ] \
+[ -R ] [ -s 'Server1 Server2' ] [ -v ]"
   echo " -a | --attach : Perform an attach to the instance"
   echo " -c | --command : Command to execute. Mandatory."
   echo " -C | --noconnect : Do not connect to the database, only assign DB value"
@@ -105,7 +105,7 @@ if [[ ${CONTINUE} == true ]] ; then
   # Some parameters are for database execution.
   TEMP=$(getopt -o ac:CdEiPRis:v \
     --long attach,command:,noconnect,databases,noeval,instances,noprofile,noremove,servers:,verbose \
-                -n ${APPL_NAME} -- "$@")
+    -n ${APPL_NAME} -- "$@")
 
   # Note the quotes around $TEMP: they are essential!
   eval set -- "${TEMP}"
@@ -117,7 +117,6 @@ if [[ ${CONTINUE} == true ]] ; then
       -c | --command ) COMMAND=$2 ; shift 2 ;;
       -C | --noconnect ) CONNECT=false ; shift ;;
       -d | --databases ) DBS=true ; shift ;;
-
       -E | --noeval ) EVAL=false ; shift ;;
       -i | --instances ) INSTS=true ; shift ;;
       -P | --noprofile ) LOAD_PROFILE=false ; shift ;;
@@ -183,11 +182,11 @@ if [[ ${CONTINUE} == true ]] ; then
     if [[ ${ATTACH} == true ]] ; then
       PARAM_ATTACH="-a"
     fi
-    if [[ ${DBS} == true ]] ; then
-      PARAM_DBS="-d"
-    fi
     if [[ ${CONNECT} == false ]] ; then
       PARAM_CONNECT="-C"
+    fi
+    if [[ ${DBS} == true ]] ; then
+      PARAM_DBS="-d"
     fi
     if [[ ${EVAL} == false ]] ; then
       PARAM_EVAL="-E"
