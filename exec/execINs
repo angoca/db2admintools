@@ -1,0 +1,257 @@
+#!/bin/bash
+
+# Executes the given command in all instances of the current machine.
+## This script executes the command in three steps:
+# 1) Executes the command in each database and wait.
+# 2) Recopiles the output (standard and error) from each database, and
+#    presents the output to the user.
+# Depending on the executing, only some steps could be performed. This
+# is done to ensure a correct presentation to the user (well sorted).
+# There are four execution modes
+# 1) Execution in all databases of the current instance (calls another script).
+# 2) Instance attachement.
+# 3) Just loads the DB2 profile.
+# 4) Nothing, just use the INSTANCE variable.
+#
+# 2013-07-09 A. Gomez (AngocA) - Creation Script.
+
+# Function to show how to call the program.
+function print_usage () {
+  echo "Usage: $1 { -c command } [ -a | -d | -P ] [ -C ] [ -E ] [ -R ] [ -s ] [ -v ]"
+  echo " -a | --attach : Perform an attach to the instance"
+  echo " -c | --command : Command to execute"
+  echo " -C | --noconnect : Do not connect to the database, only assign DB value"
+  echo " -d | --databases : Execute the command in all databases of the instance"
+  echo " -E | --noeval : Do not perform an eval on the given command"
+  echo " -P | --noprofile : Do not load the instance profile, just assign the"
+  echo "     DB2INSTANCE value"
+  echo " -R | --noremove : Do not remove the files that contain the output"
+  echo " -s | --step : Perform just the given step, not the whole process"
+  echo " -v | --verbose : Write verbose output. Multiple times, more output"
+}
+
+ATTACH=false
+CONNECT=true
+CONTINUE=true
+DBS=false
+EVAL=true
+LOAD_PROFILE=true
+REMOVE=true
+STEP=0
+VERBOSE=0
+
+APPL_NAME=$(basename ${0})
+PARAMS="$@"
+
+if [[ $? -ne 0 ]] ; then
+  print_usage ${APPL_NAME}
+  CONTINUE=false
+fi
+
+if [[ ${CONTINUE} == true ]] ; then
+  # Some parameters are for database execution.
+  TEMP=$(getopt -o ac:CdEPRs:v --long attach,command:,noconnect,databases,noeval,noprofile,noremove,step:,verbose \
+                -n ${APPL_NAME} -- "$@")
+
+  # Note the quotes around $TEMP: they are essential!
+  eval set -- "${TEMP}"
+
+  while true; do
+    case "$1" in
+      # If a new option is added, remember to put it in instances.
+      -a | --attach ) ATTACH=true ; shift ;;
+      -c | --command ) COMMAND="$2" ; shift 2 ;;
+      -C | --noconnect ) CONNECT=false ; shift ;;
+      -d | --databases ) DBS=true ; shift ;;
+      -E | --noeval ) EVAL=false ; shift ;;
+      -P | --noprofile ) LOAD_PROFILE=false ; shift ;;
+      -R | --noremove ) REMOVE=false ; shift ;;
+      -s | --step ) STEP=$2 ; shift 2 ;;
+      -v | --verbose ) VERBOSE=$((${VERBOSE}+1)) ; shift ;;
+      -- ) shift ; break ;;
+      * ) break ;;
+    esac
+  done
+fi
+
+# Validates parameters.
+if [[ ${CONTINUE} == true && -z ${COMMAND} ]] ; then
+  echo "No command given"
+  print_usage ${APPL_NAME}
+  CONTINUE=false
+fi
+
+if [[ ${CONTINUE} == true && ( 
+    ( ${ATTACH} == true && ${DBS} == true )
+    || ( ${DBS} == true && ${LOAD_PROFILE} == false )
+    || ( ${ATTACH} == true && ${LOAD_PROFILE} == false ) ) ]] ; then
+  echo "Invalid call: attach OR databases OR noprofile"
+  print_usage ${APPL_NAME}
+  CONTINUE=false
+fi
+
+if [[ ${VERBOSE} -gt 1 ]] ; then
+  echo "${APPL_NAME} ${PARAMS}"
+  echo "attach ${ATTACH}, command '${COMMAND}', connect ${CONNECT}, dbs ${DBS}, eval ${EVAL}, profile ${LOAD_PROFILE}, remove ${REMOVE}, step ${STEP}, verbose ${VERBOSE}"
+fi
+
+# Main execution
+if [[ ${CONTINUE} == true ]] ; then
+  SERVER_DIR=~/shared
+  EXEC_ALL_DBS=${SERVER_DIR}/execDBs
+  LIST_BIN=/opt/db2/na/9.7.4/instance/db2ilist
+  GREG_BIN=/opt/db2/na/9.7.4/bin/db2greg
+  DATE=$(date +"%Y%m%d")
+  TMP_FILE_PREFIX=/tmp/exec-${HOSTNAME}-${DATE}
+  TMP_INS_FILE_PREFIX=${TMP_FILE_PREFIX}-instance
+  TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-instances
+  
+  INSTANCES=$(${LIST_BIN})
+
+  # Modifies the command for evaluation.
+  if [[ ${EVAL} == true ]] ; then
+    FINAL_COMMAND="eval ${COMMAND}"
+  else
+    FINAL_COMMAND="${COMMAND}"
+  fi
+  
+  # Executes the command.
+  if [[ ${STEP} -eq 0 || ${STEP} -eq 1 ]] ; then
+    echo "> ${COMMAND}"
+    for INSTANCE in ${INSTANCES} ; do
+      export INSTANCE=${INSTANCE}
+      echo "> Executing at ${INSTANCE} (${HOSTNAME})"
+      TMP_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.log
+      ERR_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.err
+
+      if [[ ${DBS} == true ]] ; then
+        if [[ ${VERBOSE} -ge 1 ]] ; then
+          echo "Instances: Option 1"
+        fi
+        # Takes the parameters
+        if [[ ${CONNECT} == false ]] ; then
+          PARAM_CONNECT="-C"
+        fi
+        if [[ ${EVAL} == false ]] ; then
+          PARAM_EVAL="-E"
+        fi
+        if [[ ${REMOVE} == false ]] ; then
+          PARAM_REMOVE="-R"
+        fi
+        if [[ ${VERBOSE} -eq 1 ]] ; then
+          PARAM_VERBOSE="-v"
+        fi
+        if [[ ${VERBOSE} -eq 2 ]] ; then
+          PARAM_VERBOSE="-vv"
+        fi
+        if [[ ${VERBOSE} -eq 3 ]] ; then
+          PARAM_VERBOSE="-vvv"
+        fi
+        if [[ ${VERBOSE} -ge 1 ]] ; then
+          echo "Instances - Step 1"
+        fi
+
+        # Executes the first step (parallel)
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; ${EXEC_ALL_DBS} -c "${COMMAND}" -p ${PROFILE} ${PARAM_CONNECT} ${PARAM_EVAL} ${PARAM_REMOVE} -s 1 ${PARAM_VERBOSE} ) &
+      elif [[ ${ATTACH} == true ]] ; then
+        if [[ ${VERBOSE} -ge 1 ]] ; then
+          echo "Instances: Option 2"
+        fi
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; 
+          . ${PROFILE} ; 
+          db2 attach to ${INSTANCE} > /dev/null ; 
+          ${FINAL_COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ; 
+          db2 terminate > /dev/null
+        ) &
+      elif [[ ${LOAD_PROFILE} == true ]] ; then
+        if [[ ${VERBOSE} -ge 1 ]] ; then
+          echo "Instances: Option 3"
+        fi
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; 
+          . ${PROFILE} ; 
+          ${FINAL_COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ; 
+          db2 terminate > /dev/null
+        ) &
+      else
+        if [[ ${VERBOSE} -ge 1 ]] ; then
+          echo "Instances: Option 4"
+        fi
+        ( ${FINAL_COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ) &
+      fi
+    done
+
+    wait
+    if [[ ${VERBOSE} -ge 3 ]] ; then
+      echo ">> Press any enter to continue..."
+      read
+    fi
+
+    # Second step when using databases.
+    if [[ ${DBS} == true ]] ; then
+      if [[ ${VERBOSE} -ge 1 ]] ; then
+        echo "Instances - Step 2"
+      fi
+      # Recopiling the output of each instance in one file (parallel.)
+      for INSTANCE in ${INSTANCES} ; do
+        export INSTANCE=${INSTANCE}
+        echo "> Retreiving from ${INSTANCE} (${HOSTNAME})"
+
+        # Takes the output of the execution
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; ${EXEC_ALL_DBS} -p ${PROFILE} -s 2 ) &
+      done
+
+      wait
+      if [[ ${VERBOSE} -ge 3 ]] ; then
+        echo ">> Press any enter to continue..."
+        read
+      fi
+
+      # Recopiling the output of all databases.
+      for INSTANCE in ${INSTANCES} ; do
+        TMP_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.log
+        ERR_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.err
+        ${EXEC_ALL_DBS} -s 3 > ${TMP_FILE} 2> ${ERR_FILE} ;
+      done
+    fi
+  fi
+
+  # Recopiles the output.
+  if [[ ${VERBOSE} -ge 1 ]] ; then
+    echo "Instances - Step 3"
+  fi
+  if [[ ${STEP} -eq 0 || ${STEP} -eq 2 ]] ; then
+    > ${TMP_ALL_FILE_PREFIX}.log
+    > ${TMP_ALL_FILE_PREFIX}.err
+    for INSTANCE in ${INSTANCES} ; do
+      TMP_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.log
+      ERR_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.err
+      echo "> Recopiling from ${INSTANCE} (${HOSTNAME})"
+      echo "== Instance ${INSTANCE} (${HOSTNAME}) ==" >> ${TMP_ALL_FILE_PREFIX}.log
+      cat ${TMP_FILE} >> ${TMP_ALL_FILE_PREFIX}.log
+      if [[ -s ${ERR_FILE} ]] ; then
+        echo "== Instance ${INSTANCE} (${HOSTNAME}) ==" >> ${TMP_ALL_FILE_PREFIX}.err
+        cat ${ERR_FILE} >> ${TMP_ALL_FILE_PREFIX}.err
+      fi
+      if [[ ${REMOVE} == true ]] ; then
+        rm -f ${TMP_FILE}
+        rm -f ${ERR_FILE}
+      fi
+    done
+  fi
+
+  # Show results
+  if [[ ${STEP} -eq 0 || ${STEP} -eq 3 ]] ; then
+    echo ">> Standard output (${HOSTNAME})"
+    cat ${TMP_ALL_FILE_PREFIX}.log
+    if [[ -s ${TMP_ALL_FILE_PREFIX}.err ]] ; then
+      echo ">> Standard error (${HOSTNAME})"
+      cat ${TMP_ALL_FILE_PREFIX}.err
+    fi
+    if [[ ${REMOVE} == true ]] ; then
+      rm -f ${TMP_ALL_FILE_PREFIX}.log
+      rm -f ${TMP_ALL_FILE_PREFIX}.err
+    fi
+  fi
+fi
+
+

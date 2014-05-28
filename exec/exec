@@ -1,0 +1,165 @@
+#!/bin/bash
+
+# Executes the given command in all servers defined in a file.
+#
+# 2013-07-09 A. Gomez (AngocA) - Creation script.
+
+function print_usage () {
+  echo "Usage: $1 { -c command } [ -i [ -a | -d | -P ] ] [ -C ] [ -E ] [ -R ] [ -v ]"
+  echo " -a | --attach : Perform an attach to the instance"
+  echo " -c | --command : Command to execute"
+  echo " -C | --noconnect : Do not connect to the database, only assign DB value"
+  echo " -d | --databases : Execute the command in all databases of the instance"
+  echo " -e | --envs : Indicates the environments where to execute the query."
+  echo "     If empty, the used value will be 'servers'."
+  echo "     If envs and servers are defined, envs is used."
+  echo " -E | --noeval : Do not perform an eval on the given command"
+  echo " -i | --instances : Execute in all instances"
+  echo " -P | --noprofile : Do not load the instance profile, just assign the"
+  echo "     DB2INSTANCE value"
+  echo " -R | --noremove : Do not remove the files that contain the output"
+  echo " -s | --servers : Provides the servers where the command should be"
+  echo "     executed. If empty and no 'envs', the command will use ALL servers."
+  echo " -v | --verbose : Write verbose output. Multiple times, more output"
+}
+
+ATTACH=false
+CONNECT=true
+CONTINUE=true
+DBS=false
+INSTS=false
+EVAL=true
+LOAD_PROFILE=true
+REMOVE=true
+VERBOSE=0
+
+SERVER_DIR=~/shared
+EXEC_SERV=${SERVER_DIR}/execSVs
+SERVER_DIR=~/shared/
+FILE=${SERVER_DIR}/bin/servers
+
+APPL_NAME=$(basename ${0})
+PARAMS="$@"
+
+if [[ $? -ne 0 ]] ; then
+  print_usage ${APPL_NAME}
+  CONTINUE=false
+fi
+
+if [[ ${CONTINUE} == true ]] ; then
+  # Some parameters are for database execution.
+  TEMP=$(getopt -o ac:Cde:EiPRis:v --long attach,command:,noconnect,databases,envs:,noeval,instances,noprofile,noremove,servers:,verbose \
+                -n ${APPL_NAME} -- "$@")
+
+  # Note the quotes around $TEMP: they are essential!
+  eval set -- "${TEMP}"
+
+  while true; do
+    case "$1" in
+      # If a new option is added, remember to put it in instances.
+      -a | --attach ) ATTACH=true ; shift ;;
+      -c | --command ) COMMAND="$2" ; shift 2 ;;
+      -C | --noconnect ) CONNECT=false ; shift ;;
+      -d | --databases ) DBS=true ; shift ;;
+      -e | --envs ) ENVS=${2} ; shift 2 ;;
+      -E | --noeval ) EVAL=false ; shift ;;
+      -i | --instances ) INSTS=true ; shift ;;
+      -P | --noprofile ) LOAD_PROFILE=false ; shift ;;
+      -R | --noremove ) REMOVE=false ; shift ;;
+      -s | --servers ) SERVERS=${2} ; shift 2 ;;
+      -v | --verbose ) VERBOSE=$((${VERBOSE}+1)) ; shift ;;
+      -- ) shift ; break ;;
+      * ) break ;;
+    esac
+  done
+fi
+
+if [[ ${VERBOSE} -gt 0 ]] ; then
+echo "${APPL_NAME} ${PARAMS}"
+  echo "attach ${ATTACH}, command '${COMMAND}', connect ${CONNECT}, dbs ${DBS}, envs ${ENVS}, eval ${EVAL}, insts ${INSTS}, profile ${LOAD_PROFILE}, remove ${REMOVE}, servers ${SERVERS}, verbose ${VERBOSE}"
+fi
+
+# Validates parameters.
+if [[ ${CONTINUE} == true && -z ${COMMAND} ]] ; then
+  echo "No command given"
+  print_usage ${APPL_NAME}
+  CONTINUE=false
+fi
+
+# TODO Check the not found environments.
+while read LINE ; do
+  NAME_FILE=$(echo ${LINE} | cut -d' ' -f1)
+  SHORT_NAME=$(echo ${NAME_FILE} | cut -d'.' -f1)
+  ENV_LONG=$(echo ${LINE} | cut -d' ' -f2)
+  ENV_FILE=$(echo ${LINE} | cut -d' ' -f3)
+  if [[ ${VERBOSE} -gt 2 ]] ; then
+    echo "LINE '${LINE}', NAME '${NAME_FILE}', ENV '${ENV_FILE}'"
+  fi
+  if [[ -n ${ENVS} ]] ; then
+    for ENV in ${ENVS} ; do
+      if [[ ${VERBOSE} -gt 2 ]] ; then
+        echo "ENV '${ENV}' ?= '${ENV_FILE}'"
+      fi
+      if [[ ${ENV} == ${ENV_FILE} ]] ; then
+        EXECUTION="${EXECUTION} ${NAME_FILE}"
+        EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
+      fi
+    done
+  elif [[ -z ${ENVS} && -n ${SERVERS} ]] ; then
+    for SERVER in ${SERVERS} ; do
+      if [[ ${VERBOSE} -gt 2 ]] ; then
+        echo "SERVER '${SERVER}' ?= ('${NAME_FILE}'||'${SHORT_NAME}')"
+      fi
+      if [[ ${SERVER} == ${NAME_FILE} || ${SERVER} == ${SHORT_NAME} ]] ; then
+        EXECUTION="${EXECUTION} ${NAME_FILE}"
+        EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
+      fi
+    done
+  else
+    EXECUTION="${EXECUTION} ${NAME_FILE}"
+    EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
+  fi
+done < ${FILE}
+
+if [[ -z ${EXECUTION} ]] ; then
+  echo "No servers defined"
+else
+  echo "Executing at:${EXEC_ENVS}"
+  # Takes the parameters
+  if [[ ${ATTACH} == true ]] ; then
+    PARAM_ATTACH="-a"
+  fi
+  if [[ ${CONNECT} == false ]] ; then
+    PARAM_CONNECT="-C"
+  fi
+  if [[ ${DBS} == true ]] ; then
+    PARAM_DBS="-d"
+  fi
+  if [[ ${INSTS} == true ]] ; then
+    PARAM_INSTS="-i"
+  fi
+  if [[ ${EVAL} == false ]] ; then
+    PARAM_EVAL="-E"
+  fi
+  if [[ ${PROFILE} == false ]] ; then
+    PARAM_PROFILE="-P"
+  fi
+  if [[ ${REMOVE} == false ]] ; then
+    PARAM_REMOVE="-R"
+  fi
+  if [[ ${VERBOSE} -eq 1 ]] ; then
+    PARAM_VERBOSE="-v"
+  fi
+  if [[ ${VERBOSE} -eq 2 ]] ; then
+    PARAM_VERBOSE="-vv"
+  fi
+  if [[ ${VERBOSE} -eq 3 ]] ; then
+    PARAM_VERBOSE="-vvv"
+  fi
+  if [[ ${VERBOSE} -gt 0 ]] ; then
+    echo "${EXEC_SERV} -c \"${COMMAND}\" -s \"${EXECUTION}\" ${PARAM_COMMAND} ${PARAM_ATTACH} ${PARAM_INSTS} ${PARAM_DBS} ${PARAM_CONNECT} ${PARAM_EVAL} ${PARAM_PROFILE} ${PARAM_REMOVE} ${PARAM_VERBOSE}"
+  fi
+  ${EXEC_SERV} -c "${COMMAND}" -s "${EXECUTION}" ${PARAM_COMMAND} ${PARAM_ATTACH} ${PARAM_INSTS} ${PARAM_DBS} ${PARAM_CONNECT} ${PARAM_EVAL} ${PARAM_PROFILE} ${PARAM_REMOVE} ${PARAM_VERBOSE}
+fi
+
+

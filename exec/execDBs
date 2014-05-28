@@ -1,0 +1,159 @@
+#!/bin/bash
+
+# Executes the given command in all databases of the current instance.
+# This script executes the command in three steps:
+# 1) Executes the command in each database and wait.
+# 2) Recopiles the output (standard and error) from each database, and
+#    presents the output to the user.
+# Depending on the executing, only some steps could be performed. This
+# is done to ensure a correct presentation to the user (well sorted).
+# There are two execution modes
+# 1) The connection is established to the database.
+# 2) Just the DATABASE variable is established.
+#
+# 2013-07-09 A. Gomez (AngocA) - Creation Script.
+
+function print_usage () {
+  echo "Usage: $1 { -c command } [ -C ] [ -E ] [ -p ] [ -R ] [ -s ] [ -v ]"
+  echo " -c | --command : Command to execute"
+  echo " -C | --noconnect : Do not connect to the database, only assign DB value"
+  echo " -E | --noeval : Do not perform an eval on the given command"
+  echo " -p | --profile : Load the instance profile, just assign the DB2INSTANCE value"
+  echo " -R | --noremove : Do not remove the files that contain the output"
+  echo " -s | --step : Perform just the given step, not the whole process"
+  echo " -v | --verbose : Write verbose output. Multiple times, more output"
+}
+
+CONTINUE=true
+CONNECT=true
+EVAL=true
+PROFILE=
+REMOVE=true
+STEP=0
+VERBOSE=0
+
+APPL_NAME=$(basename ${0})
+PARAMS="$@"
+
+TEMP=$(getopt -o c:CEp:Rs:v --long command:,noconnect,noeval,profile:,noremove,step:,verbose \
+              -n ${APPL_NAME} -- "$@")
+
+if [[ $? -ne 0 ]] ; then
+  print_usage ${APPL_NAME}
+  CONTINUE=false
+fi
+
+if [[ ${CONTINUE} == true ]] ; then
+  # Note the quotes around $TEMP: they are essential!
+  eval set -- "${TEMP}"
+
+  while true; do
+    case "$1" in
+      # If a new option is added, remember to put it in instances.
+      -c | --command ) COMMAND=$2 ; shift 2 ;;
+      -C | --noconnect ) CONNECT=false ; shift ;;
+      -E | --noeval ) EVAL=false ; shift ;;
+      -p | --profile ) PROFILE=$2 ; shift 2 ;;
+      -R | --noremove ) REMOVE=false ; shift ;;
+      -s | --step ) STEP=$2 ; shift 2 ;;
+      -v | --verbose ) VERBOSE=$((${VERBOSE}+1)) ; shift ;;
+      -- ) shift ; break ;;
+      * ) break ;;
+    esac
+  done
+fi
+
+if [[ ${VERBOSE} -gt 1 ]] ; then
+  echo "${APPL_NAME} ${PARAMS}"
+  echo "step ${STEP} remove ${REMOVE} connect ${CONNECT} profile ${PROFILE}"
+fi
+
+if [[ -z ${COMMAND} && ( ${STEP} -eq 1 || ${STEP} -eq 0 ) ]] ; then
+  echo "No command given"
+  print_usage ${APPL_NAME}
+  CONTINUE=false
+fi
+
+# Do not remove file if only execution step.
+if [[ ${STEP} -eq 1 ]] ; then
+  REMOVE=false
+fi
+
+if [[ ( ${STEP} -eq 1 || ${STEP} -eq 2 || -z ${STEP} ) && -z ${PROFILE} ]] ; then
+  echo "DB2 profile not specified"
+  CONTINUE=false
+elif [[ ${STEP} -eq 1 || ${STEP} -eq 2 ]] ; then
+  . ${PROFILE}
+fi
+
+if [[ ${CONTINUE} == true ]] ; then
+  DATE=$(date +"%Y%m%d")
+  if [[ -z ${INSTANCE} ]] ; then
+    INSTANCE=${DB2INSTANCE}
+  fi
+  TMP_FILE_PREFIX=/tmp/exec-${INSTANCE}-${DATE}
+  TMP_DB_FILE_PREFIX=${TMP_FILE_PREFIX}-database
+  TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-databases
+  
+  if [[ ${STEP} -le 2 ]] ; then
+    DATABASES=$(db2 list db directory | awk '/Database alias/ {print $4}')
+  fi
+  # Modifies the command for evaluation.
+  if [[ ${EVAL} == true ]] ; then
+    COMMAND="eval ${COMMAND}"
+  fi
+  
+  # Executes the command.
+  if [[ ${STEP} -eq 0 || ${STEP} -eq 1 ]] ; then
+    for DB in ${DATABASES} ; do
+      export DATABASE=${DB}
+      echo ">> Executing at ${DB} (${INSTANCE}-${HOSTNAME})"
+      TMP_FILE=${TMP_DB_FILE_PREFIX}-${DB}.log
+      ERR_FILE=${TMP_DB_FILE_PREFIX}-${DB}.err
+      if [[ ${CONNECT} == true ]] ; then
+        ( . ${PROFILE} ; db2 connect to ${DB} > /dev/null ; ${COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ) &
+      else
+        ( ${COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ) &
+      fi
+    done
+    
+    wait
+  fi
+  
+  # Recopiles the output.
+  if [[ ${STEP} -eq 0 || ${STEP} -eq 2 ]] ; then
+    > ${TMP_ALL_FILE_PREFIX}.log
+    > ${TMP_ALL_FILE_PREFIX}.err
+    for DB in ${DATABASES} ; do
+      TMP_FILE=${TMP_DB_FILE_PREFIX}-${DB}.log
+      ERR_FILE=${TMP_DB_FILE_PREFIX}-${DB}.err
+      echo ">> Retreiving from ${DB} (${INSTANCE}-${HOSTNAME})"
+      echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" >> ${TMP_ALL_FILE_PREFIX}.log
+      cat ${TMP_FILE} >> ${TMP_ALL_FILE_PREFIX}.log
+      if [[ -s ${ERR_FILE} ]] ; then
+        echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" >> ${TMP_ALL_FILE_PREFIX}.err
+        cat ${ERR_FILE} >> ${TMP_ALL_FILE_PREFIX}.err
+      fi 
+      if [[ ${REMOVE} == true ]] ; then
+        rm -f ${TMP_FILE}
+        rm -f ${ERR_FILE}
+      fi
+    done
+  fi
+
+  # Show results
+  if [[ ${STEP} -eq 0 || ${STEP} -eq 3 ]] ; then
+    echo ">>> Standard output (${INSTANCE}-${HOSTNAME})"
+    cat ${TMP_ALL_FILE_PREFIX}.log
+    if [[ -s ${TMP_ALL_FILE_PREFIX}.err ]] ; then
+      echo ">>> Standard error (${INSTANCE}-${HOSTNAME})"
+      cat ${TMP_ALL_FILE_PREFIX}.err
+    fi
+    if [[ ${REMOVE} == true ]] ; then
+      rm -f ${TMP_ALL_FILE_PREFIX}.log
+      rm -f ${TMP_ALL_FILE_PREFIX}.err
+    fi
+  fi
+fi
+
+
