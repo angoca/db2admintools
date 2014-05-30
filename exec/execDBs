@@ -58,7 +58,7 @@ VERBOSE=0
 APPL_NAME=$(basename ${0})
 PARAMS="$@"
 
-TEMP=$(getopt -o c:CEp:Rs:v
+TEMP=$(getopt -o c:CEp:Rs:v \
   --long command:,noconnect,noeval,profile:,noremove,step:,verbose \
   -n ${APPL_NAME} -- "$@")
 
