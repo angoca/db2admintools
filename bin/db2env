@@ -36,7 +36,7 @@
 #
 # To configure it, you just need to change the DB2 path.
 #   export DB2_DIR=/opt/ibm/db2/v10.5
-# By default it takes the path from v9.7
+# By default it takes the path from v10.5
 #
 # Exit codes:
 # 0 : Ok.
