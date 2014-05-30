@@ -32,6 +32,8 @@
 #  * ~/db2-shared/conf/  Configuration files (server list).
 #  * ~/backup/  To backup all deployments.
 #
+# Make sure the servers file has an empty line at the end.
+#
 # 2013-06-07 A. GOMEZ (AngocA) - Creation.
 # 2013-06-11 A. GOMEZ (AngocA) - Server list dynamic from file.
 
