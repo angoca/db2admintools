@@ -1,27 +1,75 @@
 #!/bin/bash
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Andres Gomez Casanova
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 # Executes the given command in all instances of the current machine.
 ## This script executes the command in three steps:
 # 1) Executes the command in each database and wait.
-# 2) Recopiles the output (standard and error) from each database, and
+# 2) Recompiles the output (standard and error) from each database, and
 #    presents the output to the user.
 # Depending on the executing, only some steps could be performed. This
 # is done to ensure a correct presentation to the user (well sorted).
 # There are four execution modes
 # 1) Execution in all databases of the current instance (calls another script).
-# 2) Instance attachement.
+# 2) Instance attachment.
 # 3) Just loads the DB2 profile.
 # 4) Nothing, just use the INSTANCE variable.
 #
+# You need the following directories to make it work.
+#
+#  * ~/db2-shared/exec/  Scripts for parallel execution.
+#
+# To configure it, you just need to change the DB2 path.
+#   export DB2_DIR=/opt/ibm/db2/v10.5
+# By default it takes the path from v10.5
+#
 # 2013-07-09 A. Gomez (AngocA) - Creation Script.
+
+# DB2 path
+DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
+
+# Flag for debugging.
+#set -xv
+
+SERVER_DIR=~/db2-shared
+EXEC_ALL_DBS=${SERVER_DIR}/exec/execDBs
+
+TMP_FILE_PREFIX=/tmp/exec-${HOSTNAME}-${DATE}
+TMP_INS_FILE_PREFIX=${TMP_FILE_PREFIX}-instance
+TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-instances
+
+LIST_BIN=${DB2_DIR}/instance/db2ilist
+GREG_BIN=${DB2_DIR}/bin/db2greg
 
 # Function to show how to call the program.
 function print_usage () {
-  echo "Usage: $1 { -c command } [ -a | -d | -P ] [ -C ] [ -E ] [ -R ] [ -s ] [ -v ]"
+  echo "Usage: $1 { -c command } [ -a | -d | -P ] [ -C ] [ -E ] [ -R ] [ -s ] \
+[ -v ]"
   echo " -a | --attach : Perform an attach to the instance"
   echo " -c | --command : Command to execute"
-  echo " -C | --noconnect : Do not connect to the database, only assign DB value"
-  echo " -d | --databases : Execute the command in all databases of the instance"
+  echo " -C | --noconnect : Do not connect to the database, only assign DB \
+value"
+  echo " -d | --databases : Execute the command in all databases of the \
+instance"
   echo " -E | --noeval : Do not perform an eval on the given command"
   echo " -P | --noprofile : Do not load the instance profile, just assign the"
   echo "     DB2INSTANCE value"
@@ -50,8 +98,9 @@ fi
 
 if [[ ${CONTINUE} == true ]] ; then
   # Some parameters are for database execution.
-  TEMP=$(getopt -o ac:CdEPRs:v --long attach,command:,noconnect,databases,noeval,noprofile,noremove,step:,verbose \
-                -n ${APPL_NAME} -- "$@")
+  TEMP=$(getopt -o ac:CdEPRs:v \
+    --long attach,command:,noconnect,databases,noeval,noprofile,noremove,step:,verbose \
+    -n ${APPL_NAME} -- "$@")
 
   # Note the quotes around $TEMP: they are essential!
   eval set -- "${TEMP}"
@@ -92,19 +141,14 @@ fi
 
 if [[ ${VERBOSE} -gt 1 ]] ; then
   echo "${APPL_NAME} ${PARAMS}"
-  echo "attach ${ATTACH}, command '${COMMAND}', connect ${CONNECT}, dbs ${DBS}, eval ${EVAL}, profile ${LOAD_PROFILE}, remove ${REMOVE}, step ${STEP}, verbose ${VERBOSE}"
+  echo "attach ${ATTACH}, command '${COMMAND}', connect ${CONNECT}, \
+dbs ${DBS}, eval ${EVAL}, profile ${LOAD_PROFILE}, remove ${REMOVE}, \
+step ${STEP}, verbose ${VERBOSE}"
 fi
 
 # Main execution
 if [[ ${CONTINUE} == true ]] ; then
-  SERVER_DIR=~/shared
-  EXEC_ALL_DBS=${SERVER_DIR}/execDBs
-  LIST_BIN=/opt/db2/na/9.7.4/instance/db2ilist
-  GREG_BIN=/opt/db2/na/9.7.4/bin/db2greg
   DATE=$(date +"%Y%m%d")
-  TMP_FILE_PREFIX=/tmp/exec-${HOSTNAME}-${DATE}
-  TMP_INS_FILE_PREFIX=${TMP_FILE_PREFIX}-instance
-  TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-instances
   
   INSTANCES=$(${LIST_BIN})
 
@@ -152,12 +196,16 @@ if [[ ${CONTINUE} == true ]] ; then
         fi
 
         # Executes the first step (parallel)
-        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; ${EXEC_ALL_DBS} -c "${COMMAND}" -p ${PROFILE} ${PARAM_CONNECT} ${PARAM_EVAL} ${PARAM_REMOVE} -s 1 ${PARAM_VERBOSE} ) &
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ \
+	      {print \$5\"/db2profile\"}") ; ${EXEC_ALL_DBS} -c "${COMMAND}" \
+		  -p ${PROFILE} ${PARAM_CONNECT} ${PARAM_EVAL} ${PARAM_REMOVE} -s 1 \
+		  ${PARAM_VERBOSE} ) &
       elif [[ ${ATTACH} == true ]] ; then
         if [[ ${VERBOSE} -ge 1 ]] ; then
           echo "Instances: Option 2"
         fi
-        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; 
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ \
+		  {print \$5\"/db2profile\"}") ; 
           . ${PROFILE} ; 
           db2 attach to ${INSTANCE} > /dev/null ; 
           ${FINAL_COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ; 
@@ -167,7 +215,8 @@ if [[ ${CONTINUE} == true ]] ; then
         if [[ ${VERBOSE} -ge 1 ]] ; then
           echo "Instances: Option 3"
         fi
-        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; 
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ \
+		  {print \$5\"/db2profile\"}") ; 
           . ${PROFILE} ; 
           ${FINAL_COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ; 
           db2 terminate > /dev/null
@@ -197,7 +246,9 @@ if [[ ${CONTINUE} == true ]] ; then
         echo "> Retreiving from ${INSTANCE} (${HOSTNAME})"
 
         # Takes the output of the execution
-        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ {print \$5\"/db2profile\"}") ; ${EXEC_ALL_DBS} -p ${PROFILE} -s 2 ) &
+        ( PROFILE=$(${GREG_BIN} -dump | awk -F, "/${INSTANCE}/ \
+		  {print \$5\"/db2profile\"}") ; \
+		  ${EXEC_ALL_DBS} -p ${PROFILE} -s 2 ) &
       done
 
       wait
@@ -226,10 +277,12 @@ if [[ ${CONTINUE} == true ]] ; then
       TMP_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.log
       ERR_FILE=${TMP_INS_FILE_PREFIX}-${INSTANCE}.err
       echo "> Recopiling from ${INSTANCE} (${HOSTNAME})"
-      echo "== Instance ${INSTANCE} (${HOSTNAME}) ==" >> ${TMP_ALL_FILE_PREFIX}.log
+      echo "== Instance ${INSTANCE} (${HOSTNAME}) ==" \
+	    >> ${TMP_ALL_FILE_PREFIX}.log
       cat ${TMP_FILE} >> ${TMP_ALL_FILE_PREFIX}.log
       if [[ -s ${ERR_FILE} ]] ; then
-        echo "== Instance ${INSTANCE} (${HOSTNAME}) ==" >> ${TMP_ALL_FILE_PREFIX}.err
+        echo "== Instance ${INSTANCE} (${HOSTNAME}) ==" \
+		  >> ${TMP_ALL_FILE_PREFIX}.err
         cat ${ERR_FILE} >> ${TMP_ALL_FILE_PREFIX}.err
       fi
       if [[ ${REMOVE} == true ]] ; then
