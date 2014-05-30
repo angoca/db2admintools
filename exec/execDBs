@@ -37,9 +37,11 @@
 function print_usage () {
   echo "Usage: $1 { -c command } [ -C ] [ -E ] [ -p ] [ -R ] [ -s ] [ -v ]"
   echo " -c | --command : Command to execute"
-  echo " -C | --noconnect : Do not connect to the database, only assign DB value"
+  echo " -C | --noconnect : Do not connect to the database, only assign DB \
+value"
   echo " -E | --noeval : Do not perform an eval on the given command"
-  echo " -p | --profile : Load the instance profile, just assign the DB2INSTANCE value"
+  echo " -p | --profile : Load the instance profile, just assign the \
+DB2INSTANCE value"
   echo " -R | --noremove : Do not remove the files that contain the output"
   echo " -s | --step : Perform just the given step, not the whole process"
   echo " -v | --verbose : Write verbose output. Multiple times, more output"
@@ -56,8 +58,9 @@ VERBOSE=0
 APPL_NAME=$(basename ${0})
 PARAMS="$@"
 
-TEMP=$(getopt -o c:CEp:Rs:v --long command:,noconnect,noeval,profile:,noremove,step:,verbose \
-              -n ${APPL_NAME} -- "$@")
+TEMP=$(getopt -o c:CEp:Rs:v
+  --long command:,noconnect,noeval,profile:,noremove,step:,verbose \
+  -n ${APPL_NAME} -- "$@")
 
 if [[ $? -ne 0 ]] ; then
   print_usage ${APPL_NAME}
@@ -100,7 +103,8 @@ if [[ ${STEP} -eq 1 ]] ; then
   REMOVE=false
 fi
 
-if [[ ( ${STEP} -eq 1 || ${STEP} -eq 2 || -z ${STEP} ) && -z ${PROFILE} ]] ; then
+if [[ ( ${STEP} -eq 1 || ${STEP} -eq 2 || -z ${STEP} ) \
+    && -z ${PROFILE} ]] ; then
   echo "DB2 profile not specified"
   CONTINUE=false
 elif [[ ${STEP} -eq 1 || ${STEP} -eq 2 ]] ; then
@@ -119,7 +123,7 @@ if [[ ${CONTINUE} == true ]] ; then
   if [[ ${STEP} -le 2 ]] ; then
     DATABASES=$(db2 list db directory | tail -n +6 | awk '/^Database / \
 	  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' \
-	  | awk '/Indirect/ {printf "   LOCAL    %-8s (%-8s) %s\n",$4,$8,$13}')
+	  | awk '/Indirect/ {print $4}')
   fi
   # Modifies the command for evaluation.
   if [[ ${EVAL} == true ]] ; then
@@ -134,7 +138,8 @@ if [[ ${CONTINUE} == true ]] ; then
       TMP_FILE=${TMP_DB_FILE_PREFIX}-${DB}.log
       ERR_FILE=${TMP_DB_FILE_PREFIX}-${DB}.err
       if [[ ${CONNECT} == true ]] ; then
-        ( . ${PROFILE} ; db2 connect to ${DB} > /dev/null ; ${COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ) &
+        ( . ${PROFILE} ; db2 connect to ${DB} > /dev/null ; ${COMMAND} \
+		  > ${TMP_FILE} 2> ${ERR_FILE} ) &
       else
         ( ${COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ) &
       fi
@@ -151,10 +156,12 @@ if [[ ${CONTINUE} == true ]] ; then
       TMP_FILE=${TMP_DB_FILE_PREFIX}-${DB}.log
       ERR_FILE=${TMP_DB_FILE_PREFIX}-${DB}.err
       echo ">> Retreiving from ${DB} (${INSTANCE}-${HOSTNAME})"
-      echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" >> ${TMP_ALL_FILE_PREFIX}.log
+      echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" \
+	    >> ${TMP_ALL_FILE_PREFIX}.log
       cat ${TMP_FILE} >> ${TMP_ALL_FILE_PREFIX}.log
       if [[ -s ${ERR_FILE} ]] ; then
-        echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" >> ${TMP_ALL_FILE_PREFIX}.err
+        echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" \
+		  >> ${TMP_ALL_FILE_PREFIX}.err
         cat ${ERR_FILE} >> ${TMP_ALL_FILE_PREFIX}.err
       fi 
       if [[ ${REMOVE} == true ]] ; then
