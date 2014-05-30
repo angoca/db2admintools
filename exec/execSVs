@@ -29,6 +29,11 @@
 # variable. This is done by defining another output, and changing the standard
 # one.
 #
+# These are the directories needed to make it work:
+#
+#  * ~/db2-shared/exec/  Parallel execution scripts.
+#  * ~/db2-shared/conf/  Configuration files.
+#
 # 20130709 A. Gomez (AngocA) - Creation script.
 # 20131003 A. Gomez (AngocA) - For's improved.
 
@@ -38,14 +43,14 @@
 # DB2 path
 DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
 
-SERVER_DIR=${SERVER_DIR:-~/shared}
-EXEC_ALL_INSTS=${SERVER_DIR}/execINs
+SERVER_DIR=${SERVER_DIR:-~/db2-shared}
+EXEC_ALL_INSTS=${SERVER_DIR}/exec/execINs
 
 DATE=$(date +"%Y%m%d")
 TMP_FILE_PREFIX=/tmp/exec-${DATE}
 TMP_SERVER_FILE_PREFIX=${TMP_FILE_PREFIX}-server
 TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-servers
-LEGAL=${SERVER_DIR}/legal.txt
+LEGAL=${SERVER_DIR}/conf/legal.txt
 
 function print_usage () {
   echo "Executes a command in several servers in a parallel way. It could \
