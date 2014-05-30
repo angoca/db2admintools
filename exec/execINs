@@ -37,6 +37,7 @@
 # You need the following directories to make it work.
 #
 #  * ~/db2-shared/exec/  Scripts for parallel execution.
+#  * /tmp/  This directory is highly used. In it, the output is regrouped.
 #
 # To configure it, you just need to change the DB2 path.
 #   export DB2_DIR=/opt/ibm/db2/v10.5
