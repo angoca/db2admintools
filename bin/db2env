@@ -31,8 +31,8 @@
 #   . ./db2env
 # To ease the process, you can create a function per instance in the .profile.
 #
-# function i1 { . ./db2admintools/db2env db2inst1 ; }
-# function i2 { . ./db2admintools/db2env db2inst2 ; }
+# function i1 { . ~/db2-shared/bin/db2env db2inst1 ; }
+# function i2 { . ~/db2-shared/bin/db2env db2inst2 ; }
 #
 # To configure it, you just need to change the DB2 path.
 #   export DB2_DIR=/opt/ibm/db2/v10.5
