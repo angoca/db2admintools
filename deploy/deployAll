@@ -1,0 +1,74 @@
+#!/bin/bash
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Andres Gomez Casanova
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# Synchronizes all clients with the files stored in the server directory.
+# This script should be called from the server directory, and not from any
+# client.
+#
+# It needs several directories in the server:
+#
+#  * ~/db2-shared/  To stored all files.
+#  * ~/db2-shared/deploy/  Files for the synchronization.
+#  * ~/db2-shared/conf/  Configuration files (server list).
+#  * ~/backup/  To backup all deployments.
+#
+# 2013-06-07 A. GOMEZ (AngocA) - Creation.
+# 2013-06-11 A. GOMEZ (AngocA) - Server list dynamic from file.
+
+# The next line should be hardcoded in order to ensure there is just one
+# server.
+SERVER=IBEE-04
+BACKUP_DIR=~/backup
+
+HOSTNAME=$(hostname | cut -d'.' -f 1)
+SERVER_DIR=~/db2-shared/
+SHARED_DIR=db2-shared/
+FILE=${SERVER_DIR}/conf/servers
+
+INDEX=0
+while read LINE ; do
+ CLIENTS[$INDEX]="$LINE"
+ INDEX=$(($INDEX+1))
+done < ${FILE}
+
+if [[ ${HOSTNAME} != ${SERVER} ]] ; then
+ echo "Invalid server: ${HOSTNAME}"
+ echo "It should be executed only from server ${SERVER}."
+ echo "Call 'deploy' to do a remote execution."
+else
+ DATE=$(date +"%Y%m%d%H%M%S")
+ tar -zcf ${BACKUP_DIR}/deploy-${DATE}.tar ${SERVER_DIR}
+ LENGTH=${#CLIENTS[@]}
+ for I in $(seq 0 $((${LENGTH}-1))) ; do
+  CLIENT=${CLIENTS[${I}]}
+  echo ${CLIENT}
+  NAME=$(echo ${CLIENT} | cut -d' ' -f1)
+  ENV=$(echo ${CLIENT} | cut -d' ' -f2)
+  echo
+  echo ">>> Synchronizing with ${ENV} - ${NAME} <<<"
+  echo
+  touch ${SERVER_DIR}/version.log
+  rsync -avz --delete ${SERVER_DIR} ${NAME}:${SHARED_DIR}
+ done
+fi
+
