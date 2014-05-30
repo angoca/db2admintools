@@ -1,9 +1,30 @@
 #!/bin/bash
+# The MIT License (MIT)
+#
+# Copyright (c) 2014 Andres Gomez Casanova
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 # Executes the given command in all databases of the current instance.
 # This script executes the command in three steps:
 # 1) Executes the command in each database and wait.
-# 2) Recopiles the output (standard and error) from each database, and
+# 2) Recompiles the output (standard and error) from each database, and
 #    presents the output to the user.
 # Depending on the executing, only some steps could be performed. This
 # is done to ensure a correct presentation to the user (well sorted).
@@ -96,7 +117,9 @@ if [[ ${CONTINUE} == true ]] ; then
   TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-databases
   
   if [[ ${STEP} -le 2 ]] ; then
-    DATABASES=$(db2 list db directory | awk '/Database alias/ {print $4}')
+    DATABASES=$(db2 list db directory | tail -n +6 | awk '/^Database / \
+	  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' \
+	  | awk '/Indirect/ {printf "   LOCAL    %-8s (%-8s) %s\n",$4,$8,$13}')
   fi
   # Modifies the command for evaluation.
   if [[ ${EVAL} == true ]] ; then
