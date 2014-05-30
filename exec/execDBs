@@ -34,6 +34,12 @@
 #
 # 2013-07-09 A. Gomez (AngocA) - Creation Script.
 
+DATE=$(date +"%Y%m%d")
+TMP_FILE_PREFIX=/tmp/exec-${INSTANCE}-${DATE}
+TMP_DB_FILE_PREFIX=${TMP_FILE_PREFIX}-database
+TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-databases
+
+# Function to show how to call the program.
 function print_usage () {
   echo "Usage: $1 { -c command } [ -C ] [ -E ] [ -p ] [ -R ] [ -s ] [ -v ]"
   echo " -c | --command : Command to execute"
@@ -112,13 +118,9 @@ elif [[ ${STEP} -eq 1 || ${STEP} -eq 2 ]] ; then
 fi
 
 if [[ ${CONTINUE} == true ]] ; then
-  DATE=$(date +"%Y%m%d")
   if [[ -z ${INSTANCE} ]] ; then
     INSTANCE=${DB2INSTANCE}
   fi
-  TMP_FILE_PREFIX=/tmp/exec-${INSTANCE}-${DATE}
-  TMP_DB_FILE_PREFIX=${TMP_FILE_PREFIX}-database
-  TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-databases
   
   if [[ ${STEP} -le 2 ]] ; then
     DATABASES=$(db2 list db directory | tail -n +6 | awk '/^Database / \
