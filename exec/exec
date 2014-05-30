@@ -52,6 +52,7 @@ EXEC_SERV=${SERVER_DIR}/exec/execSVs
 
 FILE_ENVS=${SERVER_DIR}/conf/servers
 
+# Function to show how to call the program.
 function print_usage () {
   echo "Executes a command in a set of servers of a given environment. If the \
 environment is null, the command is executed in the given servers. If nothing, \

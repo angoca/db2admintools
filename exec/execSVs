@@ -53,6 +53,7 @@ TMP_SERVER_FILE_PREFIX=${TMP_FILE_PREFIX}-server
 TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-servers
 LEGAL=${SERVER_DIR}/conf/legal.txt
 
+# Function to show how to call the program.
 function print_usage () {
   echo "Executes a command in several servers in a parallel way. It could \
 invoke DB2 instances or databases."
