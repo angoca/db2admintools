@@ -30,7 +30,7 @@
 #  * ~/db2-shared/conf  Configuration files.
 #
 # 2013-06-07 A. GOMEZ - Creation.
-# 2013-06-13 A. GOMEZ - No legal outpu
+# 2013-06-13 A. GOMEZ - No legal output
 
 # The next line should be hardcoded in order to ensure there is just one
 # server.
