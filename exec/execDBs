@@ -21,10 +21,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Executes the given command in all databases of the current instance.
+# Executes the given command in all local databases of the current instance.
 # This script executes the command in three steps:
 # 1) Executes the command in each database and wait.
-# 2) Recompiles the output (standard and error) from each database, and
+# 2) Gathers the output (standard and error) from each database, and
 #    presents the output to the user.
 # Depending on the executing, only some steps could be performed. This
 # is done to ensure a correct presentation to the user (well sorted).
@@ -124,8 +124,8 @@ if [[ ${CONTINUE} == true ]] ; then
   
   if [[ ${STEP} -le 2 ]] ; then
     DATABASES=$(db2 list db directory | tail -n +6 | awk '/^Database / \
-	  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' \
-	  | awk '/Indirect/ {print $4}')
+      {if (NR!=1) print ""; next} {printf $0} END {print "a";}' \
+      | awk '/Indirect/ {print $4}')
   fi
   # Modifies the command for evaluation.
   if [[ ${EVAL} == true ]] ; then
@@ -141,7 +141,7 @@ if [[ ${CONTINUE} == true ]] ; then
       ERR_FILE=${TMP_DB_FILE_PREFIX}-${DB}.err
       if [[ ${CONNECT} == true ]] ; then
         ( . ${PROFILE} ; db2 connect to ${DB} > /dev/null ; ${COMMAND} \
-		  > ${TMP_FILE} 2> ${ERR_FILE} ) &
+          > ${TMP_FILE} 2> ${ERR_FILE} ) &
       else
         ( ${COMMAND} > ${TMP_FILE} 2> ${ERR_FILE} ) &
       fi
@@ -150,20 +150,20 @@ if [[ ${CONTINUE} == true ]] ; then
     wait
   fi
   
-  # Recopiles the output.
+  # Gathering the output.
   if [[ ${STEP} -eq 0 || ${STEP} -eq 2 ]] ; then
     > ${TMP_ALL_FILE_PREFIX}.log
     > ${TMP_ALL_FILE_PREFIX}.err
     for DB in ${DATABASES} ; do
       TMP_FILE=${TMP_DB_FILE_PREFIX}-${DB}.log
       ERR_FILE=${TMP_DB_FILE_PREFIX}-${DB}.err
-      echo ">> Retreiving from ${DB} (${INSTANCE}-${HOSTNAME})"
+      echo ">> Retrieving from ${DB} (${INSTANCE}-${HOSTNAME})"
       echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" \
-	    >> ${TMP_ALL_FILE_PREFIX}.log
+        >> ${TMP_ALL_FILE_PREFIX}.log
       cat ${TMP_FILE} >> ${TMP_ALL_FILE_PREFIX}.log
       if [[ -s ${ERR_FILE} ]] ; then
         echo "=== Database ${DB} (${INSTANCE}-${HOSTNAME}) ===" \
-		  >> ${TMP_ALL_FILE_PREFIX}.err
+          >> ${TMP_ALL_FILE_PREFIX}.err
         cat ${ERR_FILE} >> ${TMP_ALL_FILE_PREFIX}.err
       fi 
       if [[ ${REMOVE} == true ]] ; then

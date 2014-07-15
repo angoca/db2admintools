@@ -66,6 +66,7 @@ value."
   echo " -d | --databases : Execute the command in all databases of the \
 instance."
   echo " -E | --noeval : Do not perform an eval on the given command."
+  echo " -f | --firstinst : Just call the first instance."
   echo " -i | --instances : Execute in all instances."
   echo " -P | --noprofile : Do not load the instance profile, just assign the"
   echo "     DB2INSTANCE value."
@@ -100,6 +101,7 @@ CONTINUE=true
 DBS=false
 INSTS=false
 EVAL=true
+FIRST=false
 LOAD_PROFILE=true
 REMOVE=true
 VERBOSE=0
@@ -114,8 +116,8 @@ fi
 
 if [[ ${CONTINUE} == true ]] ; then
   # Some parameters are for database execution.
-  TEMP=$(getopt -o ac:CdEiPRis:v \
-    --long attach,command:,noconnect,databases,noeval,instances,noprofile,noremove,servers:,verbose \
+  TEMP=$(getopt -o ac:CdEfiPRis:v \
+    --long attach,command:,noconnect,databases,noeval,firstinst,instances,noprofile,noremove,servers:,verbose \
     -n ${APPL_NAME} -- "$@")
 
   # Note the quotes around $TEMP: they are essential!
@@ -129,6 +131,7 @@ if [[ ${CONTINUE} == true ]] ; then
       -C | --noconnect ) CONNECT=false ; shift ;;
       -d | --databases ) DBS=true ; shift ;;
       -E | --noeval ) EVAL=false ; shift ;;
+      -f | --firstinst ) FIRST=true ; shift ;;
       -i | --instances ) INSTS=true ; shift ;;
       -P | --noprofile ) LOAD_PROFILE=false ; shift ;;
       -R | --noremove ) REMOVE=false ; shift ;;
@@ -171,8 +174,9 @@ fi
 if [[ ${VERBOSE} -gt 1 ]] ; then
   echo "${APPL_NAME} ${PARAMS}"
   echo "attach ${ATTACH}, command '${COMMAND}', connect ${CONNECT}, \
-dbs ${DBS}, eval ${EVAL}, insts ${INSTS}, profile ${LOAD_PROFILE}, \
-remove ${REMOVE}, servers '${SERVERS}', verbose ${VERBOSE}"
+dbs ${DBS}, eval ${EVAL}, first %{FIRST}, insts ${INSTS}, \
+profile ${LOAD_PROFILE}, remove ${REMOVE}, servers '${SERVERS}', \
+verbose ${VERBOSE}"
 fi
 
 # Main execution
@@ -202,6 +206,9 @@ if [[ ${CONTINUE} == true ]] ; then
     if [[ ${EVAL} == false ]] ; then
       PARAM_EVAL="-E"
     fi
+    if [[ ${FIRST} == true ]] ; then
+      PARAM_FIRST="-f"
+    fi
     if [[ ${PROFILE} == false ]] ; then
       PARAM_PROFILE="-P"
     fi
@@ -222,14 +229,14 @@ if [[ ${CONTINUE} == true ]] ; then
       echo "Servers - Step 1: Parallel execution"
     fi
     for SERVER in ${SERVERS} ; do
-	  # Executes the command in parallel in all servers.
+      # Executes the command in parallel in all servers.
       echo "Executing at ${SERVER}"
       TMP_FILE=${TMP_SERVER_FILE_PREFIX}-${SERVER}.log
       ERR_FILE=${TMP_SERVER_FILE_PREFIX}-${SERVER}.err
       ( { execServer ${SERVER} ${EXEC_ALL_INSTS} -c \"${COMMAND}\" \
         ${PARAM_ATTACH} ${PARAM_DBS} ${PARAM_CONNECT} ${PARAM_EVAL} \
-        ${PARAM_PROFILE} ${PARAM_REMOVE} ${PARAM_VERBOSE} -s 1 2>&1 1>&3 | \
-        filter ${LEGAL} 1>&2; } 3>&1 ) &
+        ${PARAM_FIRST} ${PARAM_PROFILE} ${PARAM_REMOVE} ${PARAM_VERBOSE} \
+        -s 1 2>&1 1>&3 | filter ${LEGAL} 1>&2; } 3>&1 ) &
     done
   else 
     if [[ ${VERBOSE} -ge 1 ]] ; then
@@ -239,7 +246,7 @@ if [[ ${CONTINUE} == true ]] ; then
       echo "Servers - Step 1: Parallel execution"
     fi
     for SERVER in ${SERVERS} ; do
-	  # Executes the command in parallel in all servers.
+      # Executes the command in parallel in all servers.
       echo "Executing at ${SERVER}"
       TMP_FILE=${TMP_SERVER_FILE_PREFIX}-${SERVER}.log
       ERR_FILE=${TMP_SERVER_FILE_PREFIX}-${SERVER}.err
@@ -262,12 +269,13 @@ if [[ ${CONTINUE} == true ]] ; then
       fi
     # Regrouping the output of each server in one file (parallel.)
     for SERVER in ${SERVERS} ; do
-	  # Regrouping in parallel.
+      # Regrouping in parallel.
       echo "Retrieving from ${SERVER}"
     
       # Takes the output of the execution
       ( { execServer ${SERVER} ${EXEC_ALL_INSTS} -c \"${COMMAND}\" \
-        ${PARAM_DBS} -s 2 2>&1 1>&3 | filter ${LEGAL} 1>&2; } 3>&1 ) &
+        ${PARAM_DBS} ${PARAM_FIRST} -s 2 2>&1 1>&3 | filter ${LEGAL} 1>&2; } \
+        3>&1 ) &
     done
 
    # Waits the response of all servers.
@@ -282,7 +290,8 @@ if [[ ${CONTINUE} == true ]] ; then
       TMP_FILE=${TMP_SERVER_FILE_PREFIX}-${SERVER}.log
       ERR_FILE=${TMP_SERVER_FILE_PREFIX}-${SERVER}.err
       { execServer ${SERVER} ${EXEC_ALL_INSTS} -c \"${COMMAND}\" ${PARAM_DBS} \
-        -s 3 2>&1 1>&3 | filter ${LEGAL} 1>&2; } 3> ${TMP_FILE} 2> ${ERR_FILE}
+        ${PARAM_FIRST} -s 3 2>&1 1>&3 | filter ${LEGAL} 1>&2; } \
+        3> ${TMP_FILE} 2> ${ERR_FILE}
     done
   fi
 
@@ -303,7 +312,7 @@ if [[ ${CONTINUE} == true ]] ; then
       echo "= Server ${SERVER} =" >> ${TMP_ALL_FILE_PREFIX}.err
       cat ${ERR_FILE} >> ${TMP_ALL_FILE_PREFIX}.err
     fi
-	# Deletes intermediate files (for each server).
+    # Deletes intermediate files (for each server).
     if [[ ${REMOVE} == true ]] ; then
       rm -f ${TMP_FILE}
       rm -f ${ERR_FILE}

@@ -67,6 +67,7 @@ it is executed in all servers."
   echo "     If empty, the used value will be 'servers'."
   echo "     If envs and servers are defined, envs is used."
   echo " -E | --noeval : Do not perform an eval on the given command"
+  echo " -f | --firstinst : Just call the first instance."
   echo " -i | --instances : Execute in all instances"
   echo " -P | --noprofile : Do not load the instance profile, just assign the"
   echo "     DB2INSTANCE value"
@@ -82,6 +83,7 @@ CONTINUE=true
 DBS=false
 INSTS=false
 EVAL=true
+FIRST=false
 LOAD_PROFILE=true
 REMOVE=true
 VERBOSE=0
@@ -97,8 +99,8 @@ fi
 
 if [[ ${CONTINUE} == true ]] ; then
   # Some parameters are for database execution.
-  TEMP=$(getopt -o ac:Cde:EiPRis:v \
-    --long attach,command:,noconnect,databases,envs:,noeval,instances,noprofile,noremove,servers:,verbose \
+  TEMP=$(getopt -o ac:Cde:EfiPRis:v \
+    --long attach,command:,noconnect,databases,envs:,noeval,firstinst,instances,noprofile,noremove,servers:,verbose \
     -n ${APPL_NAME} -- "$@")
 
   # Note the quotes around $TEMP: they are essential!
@@ -113,6 +115,7 @@ if [[ ${CONTINUE} == true ]] ; then
       -d | --databases ) DBS=true ; shift ;;
       -e | --envs ) ENVS=${2} ; shift 2 ;;
       -E | --noeval ) EVAL=false ; shift ;;
+      -f | --firstinst ) FIRST=true ; shift ;;
       -i | --instances ) INSTS=true ; shift ;;
       -P | --noprofile ) LOAD_PROFILE=false ; shift ;;
       -R | --noremove ) REMOVE=false ; shift ;;
@@ -134,7 +137,7 @@ fi
 if [[ ${VERBOSE} -gt 0 ]] ; then
   echo "${APPL_NAME} ${PARAMS}"
   echo "attach ${ATTACH}, command '${COMMAND}', connect ${CONNECT}, \
-dbs ${DBS}, envs ${ENVS}, eval ${EVAL}, insts ${INSTS}, \
+dbs ${DBS}, envs ${ENVS}, eval ${EVAL}, first %{FIRST}, insts ${INSTS}, \
 profile ${LOAD_PROFILE}, remove ${REMOVE}, servers ${SERVERS}, \
 verbose ${VERBOSE}"
 fi
@@ -194,6 +197,9 @@ elif [[ ${CONTINUE} == true ]] ; then
   if [[ ${EVAL} == false ]] ; then
     PARAM_EVAL="-E"
   fi
+  if [[ ${FIRST} == true ]] ; then
+    PARAM_FIRST="-f"
+  fi
   if [[ ${INSTS} == true ]] ; then
     PARAM_INSTS="-i"
   fi
@@ -214,12 +220,14 @@ elif [[ ${CONTINUE} == true ]] ; then
   fi
   if [[ ${VERBOSE} -gt 0 ]] ; then
     echo "${EXEC_SERV} -c \"${COMMAND}\" -s \"${EXECUTION}\" ${PARAM_COMMAND} \
-	  ${PARAM_ATTACH} ${PARAM_INSTS} ${PARAM_DBS} ${PARAM_CONNECT} \
-	  ${PARAM_EVAL} ${PARAM_PROFILE} ${PARAM_REMOVE} ${PARAM_VERBOSE}"
+      ${PARAM_ATTACH} ${PARAM_INSTS} ${PARAM_DBS} ${PARAM_CONNECT} \
+      ${PARAM_EVAL} ${PARAM_FIRST} ${PARAM_PROFILE} ${PARAM_REMOVE} \
+      ${PARAM_VERBOSE}"
   fi
   ${EXEC_SERV} -c "${COMMAND}" -s "${EXECUTION}" ${PARAM_COMMAND} \
     ${PARAM_ATTACH} ${PARAM_INSTS} ${PARAM_DBS} ${PARAM_CONNECT} \
-	${PARAM_EVAL} ${PARAM_PROFILE} ${PARAM_REMOVE} ${PARAM_VERBOSE}
+    ${PARAM_EVAL} ${PARAM_FIRST} ${PARAM_PROFILE} ${PARAM_REMOVE} \
+    ${PARAM_VERBOSE}
 fi
 
 
