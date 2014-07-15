@@ -106,10 +106,11 @@ if [[ -z ${INSTANCE} ]] ; then
   PS3='Please select an instance: '
 
   INDEX=0
+  unset CLIENTS
   while read LINE ; do
     CLIENTS[$INDEX]="$LINE"
     INDEX=$(($INDEX+1))
-  done < <(${DB2GREG} -dump | awk -F, '/^I,DB2/ {print $4}')
+  done < <(${DB2GREG} -dump | awk -F, '/^I,DB2/ {print $4}' | sort)
 
   QUIT=Quit
   CLIENTS[$INDEX]=${QUIT}
