@@ -34,6 +34,11 @@
 #
 # 2013-07-09 A. Gomez (AngocA) - Creation Script.
 
+export LANG=en_US
+
+# Flag for debugging.
+#set -xv
+
 DATE=$(date +"%Y%m%d")
 TMP_FILE_PREFIX=/tmp/exec-${INSTANCE}-${DATE}
 TMP_DB_FILE_PREFIX=${TMP_FILE_PREFIX}-database
@@ -115,6 +120,11 @@ if [[ ( ${STEP} -eq 1 || ${STEP} -eq 2 || -z ${STEP} ) \
   CONTINUE=false
 elif [[ ${STEP} -eq 1 || ${STEP} -eq 2 ]] ; then
   . ${PROFILE}
+  db2 ? > /dev/null
+  if [[ $? -ne 0 ]] ; then
+    echo "DB2 env not loaded" > ${ERR_FILE}
+    CONTINUE=false
+  fi
 fi
 
 if [[ ${CONTINUE} == true ]] ; then
