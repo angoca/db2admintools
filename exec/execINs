@@ -61,7 +61,13 @@ TMP_FILE_PREFIX=/tmp/exec-${HOSTNAME}-${DATE}
 TMP_INS_FILE_PREFIX=${TMP_FILE_PREFIX}-instance
 TMP_ALL_FILE_PREFIX=${TMP_FILE_PREFIX}-all-instances
 
-GREG_BIN=${DB2_DIR}/bin/db2greg
+# Checks if db2greg exist.
+if [[ -f ${DB2_DIR}/bin/db2greg ]] ; then
+  GREG_BIN=${DB2_DIR}/bin/db2greg
+else
+  echo "DB2 binaries (DB2GREG) location unknown."
+  exit 1
+fi
 
 # Function to show how to call the program.
 function print_usage () {
