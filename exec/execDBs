@@ -114,16 +114,18 @@ if [[ ${STEP} -eq 1 ]] ; then
   REMOVE=false
 fi
 
-if [[ ( ${STEP} -eq 1 || ${STEP} -eq 2 || -z ${STEP} ) \
-    && -z ${PROFILE} ]] ; then
-  echo "DB2 profile not specified"
-  CONTINUE=false
-elif [[ ${STEP} -eq 1 || ${STEP} -eq 2 ]] ; then
-  . ${PROFILE}
-  db2 ? > /dev/null
-  if [[ $? -ne 0 ]] ; then
-    echo "DB2 env not loaded" > ${ERR_FILE}
+if [[ ${STEP} -eq 1 || ${STEP} -eq 2 || -z ${STEP} ]] ; then
+  if [[ -z ${PROFILE} ]] ; then
+    echo "DB2 profile not specified"
     CONTINUE=false
+  fi
+  if [[ ${CONTINUE} == true ]] ; then
+    . ${PROFILE}
+    db2 ? > /dev/null
+    if [[ $? -ne 0 ]] ; then
+       echo "DB2 env not loaded" > ${ERR_FILE}
+      CONTINUE=false
+    fi
   fi
 fi
 
@@ -133,7 +135,7 @@ if [[ ${CONTINUE} == true ]] ; then
   fi
   
   if [[ ${STEP} -le 2 ]] ; then
-    DATABASES=$(db2 list db directory | tail -n +6 | awk '/^Database / \
+    DATABASES=$(. ${PROFILE} ; db2 list db directory | tail -n +6 | awk '/^Database / \
       {if (NR!=1) print ""; next} {printf $0} END {print "a";}' \
       | awk '/Indirect/ {print $4}' | sort)
   fi
