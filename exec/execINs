@@ -66,6 +66,7 @@ if [[ -f ${DB2_DIR}/bin/db2greg ]] ; then
   GREG_BIN=${DB2_DIR}/bin/db2greg
 else
   echo "DB2 binaries (DB2GREG) location unknown."
+  echo "Did you export the variable: export DB2_DIR=/opt/ibm/db2/v10.5"
   exit 1
 fi
 
