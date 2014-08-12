@@ -70,7 +70,8 @@ else
   echo ">>> Synchronizing with ${ENV} - ${NAME} <<<"
   echo
   touch ${SERVER_DIR}/version.log
-  rsync -avz --delete ${SERVER_DIR} ${NAME}:${SHARED_DIR}
+  ( rsync -avz --delete ${SERVER_DIR} ${NAME}:${SHARED_DIR} ) &
  done
+ wait
 fi
 
