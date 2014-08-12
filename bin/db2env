@@ -83,6 +83,7 @@ changeInstance () {
       echo "DB2 was not found"
     fi
     echo "Current instance '${DB2INSTANCE}'"
+    db2 list db directory | awk '/Database alias/ {print $4}' | sort
   else
     echo "DB2 profile does not exist for the given instance"
     RETURN=1
