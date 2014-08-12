@@ -34,6 +34,13 @@
 #  * ~/db2-shared/exec/  Parallel execution scripts.
 #  * ~/db2-shared/conf/  Configuration files.
 #
+# To configure it, you just need to change the DB2 path.
+#   export DB2_DIR=/opt/ibm/db2/v10.5
+# By default it takes the path from v10.5
+# The directory where the scripts are should be also defined
+#   export SERVER_DIR=/home/db2inst1
+# By default it uses the home directory: ~/db2-shared
+#
 # 20130709 A. Gomez (AngocA) - Creation script.
 # 20131003 A. Gomez (AngocA) - For's improved.
 
