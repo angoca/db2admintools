@@ -47,6 +47,7 @@
 # 20130617 A. Gomez (AngocA) - Modification after refactoring to get close to
 #   oraenv.
 # 20140520 A. Gomez (AngocA) - Env variable to configure. Checks errors.
+# 20140820 A. Gomez (AngocA) - Connect to database.
 
 # DB2 path
 DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
@@ -56,6 +57,17 @@ DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
 
 # Locale to print messages in English. Prevent language problems.
 export LANG=en_US
+
+# Configures the environment to access the given instance (username).
+connectDatabase () {
+  DATABASE=$1
+  db2 connect to ${DATABASE} > /dev/null
+  if [[ ${?} -ne 0 ]] ; then
+    echo "Error while connecting to ${DATABASE}"
+  else
+    echo "Connected to ${DATABASE}"
+  fi
+}
 
 # Configures the environment to access the given instance (username).
 changeInstance () {
@@ -83,7 +95,38 @@ changeInstance () {
       echo "DB2 was not found"
     fi
     echo "Current instance '${DB2INSTANCE}'"
-    db2 list db directory | awk '/Database alias/ {print $4}' | sort
+
+    PS3='Please select a database to connect to: '
+
+    # List databases
+    INDEX=0
+    unset DATABASES
+    while read LINE ; do
+      DATABASES[$INDEX]="$LINE"
+      INDEX=$(($INDEX+1))
+    done < <(db2 list db directory | awk '/Database alias/ {print $4}' | sort)
+
+    QUIT=Quit
+    DATABASES[$INDEX]=${QUIT}
+    # Reads the option from the user.
+    select OPT in "${DATABASES[@]}"
+    do
+      if [[ ${OPT} != ${QUIT} ]] ; then
+        DB_VALID=$(db2 list db directory | awk '/Database alias/ {print $4}' | grep -e "^${OPT}\$")
+        # Checks if the database exists in the instance
+        if [[ -z ${DB_VALID} ]] ; then
+          echo "Invalid option - ${OPT}"
+        else
+          connectDatabase ${OPT}
+          if [[ ${?} -eq 0 ]] ; then
+            break
+          fi
+        fi
+      else
+        break
+      fi
+    done
+
   else
     echo "DB2 profile does not exist for the given instance"
     RETURN=1
@@ -108,25 +151,25 @@ if [[ -z ${INSTANCE} ]] ; then
   PS3='Please select an instance: '
 
   INDEX=0
-  unset CLIENTS
+  unset INSTANCES
   while read LINE ; do
-    CLIENTS[$INDEX]="$LINE"
+    INSTANCES[$INDEX]="$LINE"
     INDEX=$(($INDEX+1))
   done < <(${DB2GREG} -dump | awk -F, '/^I,DB2/ {print $4}' | sort)
 
   QUIT=Quit
-  CLIENTS[$INDEX]=${QUIT}
+  INSTANCES[$INDEX]=${QUIT}
   # Reads the option from the user.
-  select OPT in "${CLIENTS[@]}"
+  select OPT in "${INSTANCES[@]}"
   do
     if [[ ${OPT} != ${QUIT} ]] ; then
       INST_VALID=$(${DB2GREG} -dump | grep I, | grep ,${OPT},\/)
       # Checks if the instance exists in the server
       if [[ -z ${INST_VALID} ]] ; then
-        echo "Invalid instance: ${INSTANCE}"
+        echo "Invalid instance: ${OPT}"
       else
         changeInstance ${OPT}
-        if [[ $? -eq 0 ]] ; then
+        if [[ ${?} -eq 0 ]] ; then
           break
         fi
       fi
