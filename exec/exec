@@ -148,38 +148,69 @@ if [[ ${CONTINUE} == true && ! -r ${FILE_ENVS} ]] ; then
   echo "The Environments file does not exist"
   CONTINUE=false
 elif [[ ${CONTINUE} == true ]] ; then
-  while read LINE ; do
-    NAME_FILE=$(echo ${LINE} | cut -d' ' -f1)
-    ENV_LONG=$(echo ${LINE} | cut -d' ' -f2)
-    ENV_FILE=$(echo ${LINE} | cut -d' ' -f3)
-    if [[ ${VERBOSE} -gt 2 ]] ; then
-      echo "LINE '${LINE}', NAME '${NAME_FILE}', ENV '${ENV_FILE}'"
-    fi
-    if [[ -n ${ENVS} ]] ; then
+  # Get the servers
+  declare -A SERVERS_NAME
+  if [[ -n ${ENVS} ]] ; then
+    # Checks the ENV values passed with the ENV of each server.
+    while read LINE ; do
+      NAME_FILE=$(echo ${LINE} | cut -d' ' -f1)
+      ENV_LONG=$(echo ${LINE} | cut -d' ' -f2)
+      ENVS_FILE=$(echo ${LINE} | cut -d' ' -f3)
+      if [[ ${VERBOSE} -gt 2 ]] ; then
+        echo "Line ${LINE}"
+        echo "ENVS_FILE '${ENVS_FILE}'"
+      fi
       for ENV in ${ENVS} ; do
         if [[ ${VERBOSE} -gt 2 ]] ; then
-          echo "ENV '${ENV}' ?= '${ENV_FILE}'"
+          echo "ENV '${ENV}' ?= '${ENVS_FILE}'"
         fi
-        if [[ ${ENV} == ${ENV_FILE} ]] ; then
-          EXECUTION="${EXECUTION} ${NAME_FILE}"
-          EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
-        fi
+        CONT=true
+        COPY=${ENVS_FILE}
+        while [[ "${CONT}" = "true" ]] ; do
+          CUR_ENV=${COPY:0:3}
+          if [[ ${VERBOSE} -gt 2 ]] ; then
+            echo "Curr env ${CUR_ENV}"
+          fi
+          if [[ ${ENV} == ${CUR_ENV} ]] ; then
+            SERVERS_NAME[${NAME_FILE}]=${ENV_LONG}
+          fi
+          if [[ "${COPY:3:1}" = "" ]] ; then
+            CONT=false
+          fi
+          COPY=${COPY:4}
+        done
       done
-    elif [[ -z ${ENVS} && -n ${SERVERS} ]] ; then
-      for SERVER in ${SERVERS} ; do
-        if [[ ${VERBOSE} -gt 2 ]] ; then
-          echo "SERVER '${NAME_FILE}')"
-        fi
-        if [[ ${SERVER} == ${NAME_FILE} ]] ; then
-          EXECUTION="${EXECUTION} ${NAME_FILE}"
-          EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
-        fi
-      done
-    else
-      EXECUTION="${EXECUTION} ${NAME_FILE}"
-      EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
-    fi
-  done < ${FILE_ENVS}
+    done < ${FILE_ENVS}
+    
+    # Creates the list of servers
+    for ITEM in ${!SERVERS_NAME[@]} ; do
+      EXECUTION="${EXECUTION} ${ITEM}"
+      EXEC_ENVS="${EXEC_ENVS} ${SERVERS_NAME[ITEM]}"
+    done
+  else
+    while read LINE ; do
+      NAME_FILE=$(echo ${LINE} | cut -d' ' -f1)
+      ENV_LONG=$(echo ${LINE} | cut -d' ' -f2)
+      ENV_FILE=$(echo ${LINE} | cut -d' ' -f3)
+      if [[ ${VERBOSE} -gt 2 ]] ; then
+        echo "LINE '${LINE}', NAME '${NAME_FILE}', ENV '${ENV_FILE}'"
+      fi
+      if [[ -z ${ENVS} && -n ${SERVERS} ]] ; then
+        for SERVER in ${SERVERS} ; do
+          if [[ ${VERBOSE} -gt 2 ]] ; then
+            echo "SERVER '${NAME_FILE}'"
+          fi
+          if [[ ${SERVER} == ${NAME_FILE} ]] ; then
+            EXECUTION="${EXECUTION} ${NAME_FILE}"
+            EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
+          fi
+        done
+      else
+        EXECUTION="${EXECUTION} ${NAME_FILE}"
+        EXEC_ENVS="${EXEC_ENVS} ${ENV_LONG}"
+      fi
+    done < ${FILE_ENVS}
+  fi
 fi
 
 if [[ ${CONTINUE} == true && -z ${EXECUTION} ]] ; then
