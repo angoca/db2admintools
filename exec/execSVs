@@ -90,7 +90,7 @@ function execServer () {
   shift
   CMD=$@
   if [[ ${VERBOSE} -ge 1 ]] ; then
-    echo "Command to execute: '${CMD}'"
+    echo "Command to execute: 'ssh ${SVR} \"${CMD}\"'"
   fi
   ssh ${SVR} "${CMD}"
 }
