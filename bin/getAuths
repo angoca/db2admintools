@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Returns all privileges on a database granted to a user.
+# The user is passes as first parameter.
+#
+# Author: Andres Gomez Casanova (AngocA)
+# Version: 2016-08-02
+# Made in COLOMBIA
+
+DBUSER=$1
+for i in COLAUTH DBAUTH INDEXAUTH LIBRARYAUTH MODULEAUTH PACKAGEAUTH PASSTHRUAUTH ROLEAUTH ROUTINEAUTH SCHEMAAUTH SEQUENCEAUTH TABAUTH ; do echo ">>$i<<" ; db2 -x "select distinct '$i' as table, varchar(grantee, 32) as user from syscat.$i where upper(grantee) like upper('${DBUSER}%')"; done
+
