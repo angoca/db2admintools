@@ -22,23 +22,29 @@
 # SOFTWARE.
 
 # Shows the security of the Operative System related to the users and groups in
-# DB2. This script uses 'getent' to retriee the information from different
+# DB2. This script uses 'getent' to retrieve the information from different
 # Unix databases for passwd (/etc/passwd, LDAP, ...)
+# It is necessary to define a global variable with the location of the DB2
+# binaries: DB2_DIR.
+# If the variable is not defined, it will use: /opt/ibm/db2/V11.1
+# For example:
+#    export DB2_DIR=/opt/ibm/db2/V10.5
 #
 # This script is generic to any environment.
 #
 # Exit codes:
-# 0 : Ok.
-# 1 : DB2 binaries not found.
+# 0: Ok.
+# 1: DB2 binaries not found (db2greg). Please define the DB2_DIR variable.
 #
 # 2013-05-31 A. Gomez (AngocA) - Script creation.
 # 2013-06-17 A. Gomez (AngocA) - Dynamic group analyses.
 # 2013-07-09 A. Gomez (AngocA) - Problem fixed: empty authority group.
 # 2013-09-06 A. Gomez (AngocA) - Correction in group id retrieval.
 # 2014-08-04 A. Gomez (AngocA) - Getent to access all databases.
+# 2016-09-21 A. Gomez (AngocA) - More dynamic, group optimization.
 
 # DB2 path
-DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V10.5}
+DB2_DIR=${DB2_DIR:-/opt/ibm/db2/V11.1}
 
 # Flag for debugging.
 #set -xv
@@ -49,55 +55,65 @@ export LANG=en_US
 # Shows the members of a OS group.
 group () {
   GROUP=$(echo ${1} | tr '[A-Z]' '[a-z]')
-  LINE=$(getent group | awk -F: "/^${GROUP}:/ {print \$3\":\"\$4}")
-  if [[ -z ${LINE} ]] ; then
-    GROUP=$(echo ${1} | tr '[A-Z]' '[a-z]')
+  # Checks if getent exist in the server.
+  getent 2> /dev/null
+  if [[ ${?} -eq 127 ]] ; then
+    # If getent is not present, uses /etc files.
+    LINE=$(awk -F: "/^${GROUP}:/ {print \$3\":\"\$4}" /etc/group)
+  else
     LINE=$(getent group | awk -F: "/^${GROUP}:/ {print \$3\":\"\$4}")
+    if [[ -z ${LINE} ]] ; then
+      # Sometimes it need twice to run correctly.
+      GROUP=$(echo ${1} | tr '[A-Z]' '[a-z]')
+      LINE=$(getent group | awk -F: "/^${GROUP}:/ {print \$3\":\"\$4}")
+    fi
   fi
   MEMBERS_SEC=$(echo ${LINE} | cut -d':' -f2)
   ID=$(echo ${LINE} | cut -d':' -f1)
-  MEMBERS_PRI=$(getent passwd | awk -F: "{print \$1\":\"\$4\":\"}" | awk -F: "/:${ID}:/ {print \$1}" | sed -e :a -e '$!N; s/\n/, /; ta')
-  echo "  Group: ${GROUP} (ID ${ID})"
-  echo "   Members: ${MEMBERS_PRI}, ${MEMBERS_SEC}"
+  MEMBERS_PRI=$(awk -F: "/:${ID}:/ {print \$1}" /etc/passwd | sed -e :a -e '$!N; s/\n/,/; ta')
+  #MEMBERS_PRI=$(getent passwd | awk -F: "{print \$1\":\"\$4\":\"}" | awk -F: "/:${ID}:/ {print \$1}" | sed -e :a -e '$!N; s/\n/, /; ta')
   if [[ -z ${LINE} ]] ; then
-    echo "  Group: ${GROUP} is not known in the system"
+    echo "   Group: ${GROUP} is not known in the system"
+  else
+    echo "   Group: ${GROUP} (ID ${ID})"
+    COL_MEMBERS=$(echo "${MEMBERS_PRI},${MEMBERS_SEC}" | tr -s ','  '\n' | sort | uniq | tr -s '\n' ',')
+    echo "    Members: ${COL_MEMBERS}"
   fi
 }
 
 # Checks if db2greg exist.
-if [[ -f ${DB2_DIR}/bin/db2greg ]] ; then
-  DB2GREG=${DB2_DIR}/bin/db2greg
-else
-  echo "DB2 binaries (DB2GREG) location unknown."
-  echo "Did you export the variable: export DB2_DIR=/opt/ibm/db2/v10.5"
+if [[ ! -x ${DB2_DIR}/bin/db2greg ]] ; then
+  echo "Please define the DB2_DIR global variable to point to the"
+  echo "db2 binaries."
+  echo "  export DB2_DIR=/opt/ibm/db2/V11.1"
   exit 1
 fi
 
-INSTANCES=$(${DB2GREG} -dump | awk -F, '/^I,DB2/ {print $4}')
+INSTANCES=$(${DB2_DIR}/bin/db2greg -dump | awk -F, '/^I,DB2/ && /\/sqllib,/ {print $4}')
 
 # Show security at instance level.
 echo "Security at instance level:"
 while IFS= read INST ; do
-  echo "Instance ${INST}"
+  echo " Instance ${INST}"
   eval . ~${INST}/sqllib/db2profile
 
   while IFS= read LINE ; do
     AUTH=$(echo ${LINE} | cut -d' ' -f1 | sed 's/[(|)]//g')
-    GROUP=$(echo ${LINE} | awk '{print $2}' )
-    echo " Authority: ${AUTH}"
-    if [[ -n ${GROUP} ]] ; then
+    echo "  Authority: ${AUTH}"
+    if [[ $(echo ${LINE} | wc -w) -eq 2 ]] ; then
+      GROUP=$(echo ${LINE} | cut -d' ' -f2)
       group ${GROUP}
     else
-      echo "  No associated group"
+      echo "   There is not an group associated with this authority"
     fi
   done < <( db2 get dbm cfg | awk '/_GROUP/ {print $4,$6}' )
-done < <( printf '%s\n' "$INSTANCES" )
+done < <( printf '%s\n' "${INSTANCES}" )
 echo
 
 # Show security at database level.
 echo "Security at database level:"
 while IFS= read INST ; do
-  echo "Instance ${INST}"
+  echo " Instance ${INST}"
   eval . ~${INST}/sqllib/db2profile
 
   DBS=$(db2 list db directory | tail -n +6 | awk '/^Database /  {if (NR!=1) print ""; next} {printf $0} END {print "a";}' | awk '/Indirect/ {print $4}')
@@ -105,9 +121,9 @@ while IFS= read INST ; do
   while IFS= read DB ; do
     DB_NAME=$(db2 connect to ${DB} | awk '/alias/ {print $5}')
     if [[ ${DB_NAME} != "" ]] ; then
-      echo " Database ${DB}"
+      echo "  Database ${DB}"
       db2 connect to ${DB} > /dev/null
-      db2 "select '  ' || varchar(substr(grantee, 1, 30), 30) grantee, varchar(substr(grantor, 1,  30), 30) as \"<--GRANTOR\", granteetype type, dbadmauth dbadm, securityadmauth secadm, wlmadmauth wladm, DATAACCESSAUTH data, ACCESSCTRLAUTH ACCESS, BINDADDAUTH bind, CONNECTAUTH conn, CREATETABAUTH crttab, EXTERNALROUTINEAUTH extrout, IMPLSCHEMAAUTH implschem, LOADAUTH load, NOFENCEAUTH nofenc, QUIESCECONNECTAUTH quiesce, LIBRARYADMAUTH lib, SQLADMAUTH sql, EXPLAINAUTH expl from syscat.dbauth order by type desc, grantee" | grep -e "^$" -v | grep -v "record(s) selected."
+      db2 "select '  ' || varchar(substr(grantee, 1, 10), 10) grantee, varchar(substr(grantor, 1, 10), 10) as \"<--GRANTOR\", granteetype type, dbadmauth dbadm, securityadmauth secadm, wlmadmauth wladm, DATAACCESSAUTH data, ACCESSCTRLAUTH ACCESS, BINDADDAUTH bind, CONNECTAUTH conn, CREATETABAUTH crttab, EXTERNALROUTINEAUTH extrout, IMPLSCHEMAAUTH implsche, LOADAUTH load, NOFENCEAUTH nofenc, QUIESCECONNECTAUTH quies, LIBRARYADMAUTH lib, SQLADMAUTH sql, EXPLAINAUTH expl from syscat.dbauth order by type desc, grantee" | grep -e "^$" -v | grep -v "record(s) selected."
       while IFS= read GROUP ; do
         group ${GROUP}
       done < <( db2 connect to ${DB} > /dev/null ; db2 -x "select substr(grantee,1,10) grantee from syscat.dbauth where granteetype = 'G' group by grantee" )
@@ -116,8 +132,8 @@ while IFS= read INST ; do
       echo "Connection error for ${DB}"
       db2 connect to ${DB}
     fi
-  done < <( printf '%s\n' "$DBS" )
+  done < <( printf '%s\n' "${DBS}" )
   db2 terminate > /dev/null
 
-done < <( printf '%s\n' "$INSTANCES" )
+done < <( printf '%s\n' "${INSTANCES}" )
 
