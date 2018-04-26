@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Script that extract the event monitor written to files.
+#
+# Author: Andres Gomez
+# Version: 2018-04-26
+
+DB=$1
+if [ "${DB}" == "" ] ; then
+  echo "Please specify a database"
+  exit 1
+fi
+db2 -x connect to ${DB} > /dev/null
+echo "Estado de los Event monitors"
+db2 -x "SELECT
+  CASE
+    WHEN EVENT_MON_STATE(EVMONNAME) = 0 THEN 'Inactive'
+    WHEN EVENT_MON_STATE(EVMONNAME) = 1 THEN 'Active'
+  END STATE,
+  EVMONNAME
+FROM SYSCAT.EVENTMONITORS"
+
+echo "-----"
+MONITORS=$(db2 -x "select EVMONNAME from syscat.EVENTMONITORS where TARGET_TYPE = 'F'")
+for i in ${MONITORS} ; do
+  echo "Flushing $i"
+  db2 -x flush event monitor $i > /dev/null
+done
+
+echo "-----"
+PATHS=$(db2 -x " select p.path || 'db2event/' || e.TARGET from sysibmadm.DBPATHS p, syscat.EVENTMONITORS e where p.type = 'DBPATH' and e.TARGET_TYPE = 'F'")
+for i in ${PATHS} ; do
+  echo "Analysing $i"
+  cd $i
+  ls *.evt
+  HEAD=$(cd $i ; ls -1 *.evt | head -1)
+  cd -
+  db2evmon -path $i -file ${HEAD} >> deadlocks_${DB}_$(basename ${PATHS})
+done
+
